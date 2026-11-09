@@ -101,6 +101,17 @@
   .banner.warn{background:var(--warn-soft);color:var(--warn);}
   .banner.fail{background:var(--bad-soft);color:var(--bad);}
   ul.notes{margin:8px 0 0;padding-left:20px;color:var(--text-dim);font-size:13px;}
+  /* Plain-language checklist */
+  ul.checklist{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;}
+  ul.checklist li{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border-radius:10px;background:var(--surface-2);font-size:13.5px;}
+  ul.checklist li .ic{flex:0 0 22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;}
+  ul.checklist li.ok .ic{background:var(--good-soft);color:var(--good);}
+  ul.checklist li.warn .ic{background:var(--warn-soft);color:var(--warn);}
+  ul.checklist li.bad .ic{background:var(--bad-soft);color:var(--bad);}
+  ul.checklist li.info .ic{background:var(--surface-3);color:var(--text-dim);}
+  ul.checklist li small{display:block;color:var(--text-dim);font-size:12.5px;margin-top:2px;}
+  details.expert{margin-top:18px;}
+  details.expert > summary{cursor:pointer;font-weight:600;font-size:13px;}
   .hidden{display:none !important;}
   footer{color:var(--text-faint);font-size:12.5px;margin-top:30px;}
   pre.err{white-space:pre-wrap;background:var(--surface-2);padding:10px;border-radius:8px;font-family:var(--mono);font-size:12px;color:var(--text-dim);max-height:160px;overflow:auto;}
@@ -112,67 +123,80 @@
 <header>
   <p class="eyebrow">CAA NEO · Creative Services</p>
   <h1>Placement Encoder</h1>
-  <p>Internal tool · v0.3 (Phase 3) · <a href="guide.html" style="color:var(--accent)">User guide</a> · runs entirely in this browser tab. Drop in a finished video, pick a placement, and get a correctly encoded file with a spec check. No files leave this machine.</p>
+  <p><a href="guide.html" style="color:var(--accent)">User guide</a> · Drop in a finished video, choose where it is going, and get a file made to that placement's spec. Everything happens in this browser tab. No files leave this computer.</p>
 </header>
 
 <div id="browser-msg" class="msgs"></div>
 
-<!-- 1. SOURCE -->
+<!-- 1. SOURCE + AUTOMATIC CHECK -->
 <section class="panel" id="sec-source">
-  <h2>1 · Source video</h2>
+  <h2>1 · Your video</h2>
   <div class="drop" id="drop">
     <strong>Drop a video here</strong> or click to choose a file<br>
     <span class="hint">MOV or MP4 · one file at a time · stays on your computer</span>
     <input type="file" id="file" accept="video/*,.mov,.mp4,.m4v" class="hidden">
   </div>
   <div id="source-status" class="hint" style="margin-top:12px"></div>
-  <div class="kv hidden" id="source-details"></div>
-  <div class="row">
-    <button id="btn-preflight" disabled title="Measures loudness, duplicate frames, black bars, black frames and interlacing. Takes about as long as playing the video a few times faster.">Run preflight analysis</button>
-    <span class="hint">Optional. Checks loudness, duplicate frames, black bars and black frames before you encode.</span>
+  <div id="check-area" class="hidden">
+    <h3>Automatic check for <span id="check-for"></span></h3>
+    <ul class="checklist" id="checklist"></ul>
+    <div id="thumbs"></div>
+    <details style="margin-top:14px">
+      <summary class="hint" style="cursor:pointer">Technical details (for video professionals)</summary>
+      <div class="kv" id="source-details"></div>
+      <div id="preflight-report"></div>
+    </details>
   </div>
 </section>
 
-<!-- PREFLIGHT REPORT -->
-<section class="panel hidden" id="sec-preflight">
-  <h2>Preflight analysis</h2>
-  <div id="preflight-report"></div>
-  <p class="hint" style="margin-top:14px">These are measurements, not a verdict. Statuses use the selected preset's rules.</p>
-</section>
-
-<!-- 2. PRESET + SETTINGS -->
+<!-- 2. PLACEMENT -->
 <section class="panel" id="sec-settings">
-  <h2>2 · Placement and settings</h2>
+  <h2>2 · Where is it going?</h2>
   <div class="row">
-    <label class="hint" for="preset">Placement preset</label>
-    <select id="preset" class="field"></select>
+    <select id="preset" class="field" style="min-width:320px;font-size:14px" aria-label="Placement"></select>
     <span id="preset-status"></span>
-    <button class="ghost" id="reset-preset" title="Put every setting back to the preset's values">Reset to preset</button>
   </div>
-  <ul class="notes" id="preset-notes"></ul>
-  <div class="hint" id="preset-source" style="margin-top:8px"></div>
+  <div class="hint" id="preset-summary" style="margin-top:10px"></div>
+  <details style="margin-top:6px">
+    <summary class="hint" style="cursor:pointer">Spec notes and source</summary>
+    <ul class="notes" id="preset-notes"></ul>
+    <div class="hint" id="preset-source" style="margin-top:8px"></div>
+  </details>
 
-  <h3>Output file name</h3>
+  <h3>File name</h3>
   <div class="row">
     <input type="text" id="outname" class="field" style="width:320px" spellcheck="false" aria-label="Output file name">
     <span class="hint" id="outext"></span>
     <span class="hint" id="name-rule"></span>
   </div>
 
-  <details style="margin-top:16px" open>
-    <summary style="cursor:pointer;font-weight:600">All settings <span class="hint">(amber outline = changed from the preset)</span></summary>
-    <div id="settings-form" style="margin-top:14px"></div>
-  </details>
+  <div id="grain-row" class="hidden" style="margin-top:16px">
+    <label class="check" style="display:flex;gap:8px;align-items:center;font-weight:600">
+      <input type="checkbox" id="grain"> Add light grain (prevents duplicate-frame rejections)
+    </label>
+    <div class="hint" id="grain-why" style="margin:4px 0 0 26px"></div>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="customize-row">
+    <button class="ghost" id="btn-customize" type="button">Change the technical settings</button>
+  </div>
+  <div id="advanced" class="hidden">
+    <div class="row" style="margin-top:14px">
+      <span class="hint">Amber outline = changed from the placement's values.</span>
+      <button class="ghost" id="reset-preset" type="button" title="Put every setting back to the placement's values">Reset to placement values</button>
+    </div>
+    <div id="settings-form" style="margin-top:6px"></div>
+  </div>
   <div class="msgs" id="warnings"></div>
 </section>
 
 <!-- 3. ENCODE -->
 <section class="panel" id="sec-encode">
-  <h2>3 · Encode</h2>
+  <h2>3 · Make the file</h2>
   <div class="row">
-    <button class="primary" id="btn-encode" disabled>Encode</button>
+    <button class="primary" id="btn-encode" disabled>Make the file</button>
     <button class="danger hidden" id="btn-cancel">Cancel</button>
-    <button id="btn-check" disabled title="Check the source file against this preset without re-encoding">Check source against preset (no encode)</button>
+    <button class="ghost" id="btn-check" disabled title="Check your video against this placement without making a new file">Only check my video (no new file)</button>
     <span class="hint" id="est"></span>
   </div>
   <div class="hint" id="keepopen" style="margin-top:10px">Keep this tab open and in the foreground while encoding. Large files can take several minutes.</div>
@@ -189,7 +213,11 @@
   <h2>4 · Result</h2>
   <div id="result-head"></div>
   <div class="row"><button class="primary hidden" id="btn-download">Download file again</button><span id="saved" class="hint"></span></div>
-  <div id="report"></div>
+  <ul class="checklist" id="result-list" style="margin-top:12px"></ul>
+  <details style="margin-top:14px">
+    <summary class="hint" style="cursor:pointer">Full technical report</summary>
+    <div id="report"></div>
+  </details>
   <p class="hint" style="margin-top:14px">This is a technical check against the published spec values in the preset, not a guarantee of acceptance. Placements can still reject a file for content reasons. Presets marked UNVERIFIED have not been confirmed with the placement.</p>
 </section>
 

@@ -42,8 +42,11 @@ function el(tag, attrs = {}, ...kids) {
 // ---------- settings form definition ----------
 // One entry per control. "show" hides a control when it does not apply.
 const OPT = {
-  container: [['mp4', 'MP4'], ['mov', 'MOV']],
-  vcodec: [['h264', 'H.264'], ['prores', 'Apple ProRes']],
+  // "format" and "size" are shortcuts: one plain choice that sets several underlying settings.
+  format: [['mp4-h264', 'MP4 file (H.264 video)'], ['mov-h264', 'MOV file (H.264 video)'], ['mov-prores', 'MOV file (Apple ProRes video, very large)']],
+  size: [['keep', 'Keep the source size'], ['1920x1080', '1920 x 1080 (HD, 16:9)'], ['1280x720', '1280 x 720 (16:9)'], ['3840x2160', '3840 x 2160 (4K, 16:9)'],
+    ['1080x1920', '1080 x 1920 (vertical 9:16)'], ['1080x1080', '1080 x 1080 (square)'], ['1080x1350', '1080 x 1350 (4:5)']],
+  noiseStrength: [['2', '2 (lightest that works)'], ['4', '4 (recommended)'], ['6', '6'], ['8', '8 (visible on flat colour)']],
   h264Profile: [['main', 'Main'], ['high', 'High'], ['high422', 'High 4:2:2']],
   proresProfile: [['proxy', 'Proxy'], ['lt', 'LT'], ['422', '422 (Standard)'], ['hq', '422 HQ'], ['4444', '4444']],
   pixFmt: [['yuv420p', '4:2:0 (8-bit)'], ['yuv422p', '4:2:2 (8-bit)']],
@@ -57,34 +60,50 @@ const OPT = {
   loudMode: [['off', 'Off (leave the audio level unchanged)'], ['lufs', 'Integrated loudness (LUFS) + true peak'], ['rms', 'Average level (RMS dB) + peak']]
 };
 const isH264 = (s) => s.vcodec === 'h264';
+// Read/write the two shortcut choices.
+const PSEUDO = {
+  format: {
+    get: (s) => `${s.container}-${s.vcodec}`,
+    set: (s, v) => {
+      const [c, vc] = v.split('-'); s.container = c; s.vcodec = vc;
+      s.acodec = vc === 'prores' ? 'pcm' : 'aac'; // ProRes deliveries use uncompressed audio; H.264 uses AAC
+    }
+  },
+  size: {
+    get: (s) => (s.width && s.height ? `${s.width}x${s.height}` : 'keep'),
+    set: (s, v) => { if (v === 'keep') { s.width = null; s.height = null; } else { const [w, h] = v.split('x').map(Number); s.width = w; s.height = h; } }
+  }
+};
+// Settings shown only in Custom mode (or after "Change the technical settings").
+// Groups marked expert sit inside a further collapsed section. Audio channels are
+// always stereo and the audio codec follows the file type, so neither is shown.
 const FIELDS = [
-  { group: 'Container and video', items: [
-    { k: 'container', label: 'Container', type: 'select' },
-    { k: 'vcodec', label: 'Video codec', type: 'select' },
+  { group: 'The basics', items: [
+    { k: 'format', label: 'File type', type: 'select' },
+    { k: 'size', label: 'Picture size', type: 'select' },
+    { k: 'fps', label: 'Frame rate', type: 'select' },
+    { k: 'bitrateKbps', label: 'Video bitrate (kbps, higher = better quality and bigger file)', type: 'bitrate', show: isH264 }
+  ] },
+  { group: 'Video details', expert: true, items: [
     { k: 'h264Profile', label: 'H.264 profile', type: 'select', show: isH264 },
     { k: 'proresProfile', label: 'ProRes profile', type: 'select', show: (s) => !isH264(s) },
     { k: 'pixFmt', label: 'Chroma / pixel format', type: 'select', show: isH264 },
-    { k: 'width', label: 'Width (px, empty = keep source)', type: 'number' },
-    { k: 'height', label: 'Height (px, empty = keep source)', type: 'number' },
-    { k: 'fps', label: 'Frame rate', type: 'select' },
     { k: 'bitrateMode', label: 'Bitrate mode', type: 'select', show: isH264 },
-    { k: 'bitrateKbps', label: 'Video bitrate (kbps)', type: 'bitrate', show: isH264 },
     { k: 'x264Preset', label: 'Encode speed vs quality', type: 'select', show: isH264 },
     { k: 'bframes', label: 'B-frames', type: 'number', show: isH264 },
     { k: 'gopSeconds', label: 'Keyframe interval (seconds, 0 = auto)', type: 'number', show: isH264, step: '0.1' },
     { k: 'closedGop', label: 'Closed GOP', type: 'check', show: isH264 },
     { k: 'faststart', label: 'Fast-start (moov atom at front)', type: 'check' },
     { k: 'stripEditLists', label: 'Strip edit lists', type: 'check' },
-    { k: 'tagBt709', label: 'Tag colour space as BT.709', type: 'check' }
+    { k: 'tagBt709', label: 'Tag colour space as BT.709', type: 'check' },
+    { k: 'noiseStrength', label: 'Grain strength (when grain is on)', type: 'select', numeric: true }
   ] },
-  { group: 'Audio', items: [
-    { k: 'acodec', label: 'Audio codec', type: 'select' },
+  { group: 'Audio details', expert: true, items: [
     { k: 'sampleRate', label: 'Sample rate', type: 'select', numeric: true },
     { k: 'bitDepth', label: 'Bit depth', type: 'select', numeric: true, show: (s) => s.acodec === 'pcm' },
-    { k: 'channels', label: 'Channels', type: 'select', numeric: true },
     { k: 'audioKbps', label: 'Audio bitrate (kbps)', type: 'number', show: (s) => s.acodec === 'aac' }
   ] },
-  { group: 'Loudness (audio leveling)', items: [
+  { group: 'Volume (audio leveling)', expert: true, items: [
     { k: 'loudMode', label: 'Leveling method', type: 'select' },
     { k: 'loudTarget', label: 'Target (LUFS, or average dB)', type: 'number', step: '0.1', signed: true, show: (s) => s.loudMode !== 'off' },
     { k: 'loudPeak', label: 'Peak limit (dBTP, or dB)', type: 'number', step: '0.1', signed: true, show: (s) => s.loudMode !== 'off' },
@@ -92,32 +111,28 @@ const FIELDS = [
       picks: [['Broadcast: -24 LKFS / -2 dBTP', -24, -2], ['Streaming: -14 LUFS / -1 dBTP', -14, -1], ['Streaming: -16 LUFS / -1 dBTP', -16, -1]] },
     { type: 'hint', show: (s) => s.loudMode !== 'off',
       text: 'The audio is measured first, then adjusted, then measured again after encoding so the report shows the real result. If you do not know the target, leave leveling Off or ask the placement.' }
-  ] },
-  { group: 'Duplicate frames', items: [
-    { k: 'noiseOn', label: 'Prevent duplicate frames (adds a very light noise layer)', type: 'check' },
-    { k: 'noiseStrength', label: 'Noise strength (1 = barely there)', type: 'slider', min: 1, max: 12, step: 1, show: (s) => s.noiseOn },
-    { k: 'dupCheck', label: 'Scan the finished file for duplicate frames, black bars and black frames', type: 'check' },
-    { type: 'hint', show: (s) => s.noiseOn,
-      text: 'Strong noise is visible on flat colours and raises the bitrate. Stronger is not always better: the encoder can smooth strong noise away, so a moderate setting (about 4 to 6) often works best. If the repeats come from frame rate conversion rather than held frames, the real fix is to encode at the native frame rate.' }
   ] }
 ];
 
 const controls = {}; // key -> { wrap, inputs: [..], f }  (controls without a key use "_n")
+const val = (s, k) => (PSEUDO[k] ? PSEUDO[k].get(s) : s[k]);
 
 function buildSettingsForm() {
   const root = $('settings-form'); root.replaceChildren(); for (const k in controls) delete controls[k];
-  let n = 0;
+  let n = 0, expert = null;
   for (const g of FIELDS) {
-    root.append(el('h3', { text: g.group }));
     const grid = el('div', { class: 'grid' });
     for (const f of g.items) grid.append(buildControl(f, f.k || '_' + (n++)));
-    root.append(grid);
+    if (g.expert) {
+      if (!expert) { expert = el('details', { class: 'expert' }, el('summary', { text: 'Expert settings (most people never need these)' })); root.append(expert); }
+      expert.append(el('h3', { text: g.group }), grid);
+    } else root.append(el('h3', { text: g.group }), grid);
   }
   refreshForm();
 }
 
 function buildControl(f, key) {
-  const s = state.settings;
+  const s = { ...state.settings, format: val(state.settings, 'format'), size: val(state.settings, 'size') };
   let wrap, inputs = [];
   if (f.type === 'hint') {
     wrap = el('div', { class: 'hint', style: 'grid-column:1/-1', text: f.text });
@@ -160,17 +175,21 @@ function refreshForm() {
     c.wrap.classList.toggle('hidden', !!(c.f.show && !c.f.show(s)));
     const k = c.f.k;
     if (!k) continue;
-    const changed = String(s[k] ?? '') !== String(d[k] ?? '');
+    const cur = val(s, k), def = val(d, k);
+    const changed = String(cur ?? '') !== String(def ?? '');
     for (const i of c.inputs) i.classList.toggle('changed', changed);
-    // keep inputs in sync (e.g. after "Reset to preset" or a quick pick)
+    // keep inputs in sync (e.g. after "Reset" or a quick pick)
     const i0 = c.inputs[0];
-    if (i0.type === 'checkbox') i0.checked = !!s[k]; else if (document.activeElement !== i0) i0.value = s[k] == null ? '' : s[k];
-    if (c.inputs[1] && document.activeElement !== c.inputs[1]) c.inputs[1].value = s[k];
+    if (i0.type === 'checkbox') i0.checked = !!cur; else if (document.activeElement !== i0) i0.value = cur == null ? '' : cur;
+    if (c.inputs[1] && document.activeElement !== c.inputs[1]) c.inputs[1].value = cur;
   }
 }
 
 function setSetting(k, v) {
-  state.settings[k] = v;
+  if (PSEUDO[k]) PSEUDO[k].set(state.settings, v); else state.settings[k] = v;
+  // Raising the frame rate repeats frames, so grain is switched on with it
+  // (and off again otherwise). The user can still untick it.
+  if (k === 'fps' && state.src) state.settings.noiseOn = raisesFps();
   // sensible companions: ProRes lives in MOV
   if (k === 'vcodec' && v === 'prores' && state.settings.container === 'mp4') state.settings.container = 'mov';
   if (k === 'pixFmt' && v === 'yuv422p' && state.settings.h264Profile !== 'high422') state.settings.h264Profile = 'high422';
@@ -188,9 +207,19 @@ function defaultsFor(p) {
   return {
     ...JSON.parse(JSON.stringify(p.settings)),
     loudMode: L.mode || 'off', loudTarget: L.targetDb ?? -14, loudPeak: L.peakDb ?? -1,
-    noiseOn: !!p.noise?.defaultOn, noiseStrength: p.noise?.strength ?? 3,
-    dupCheck: !!(p.noise || p.spec?.noLetterbox)
+    // Grain is off by default; it is offered when the frame rate changes or repeats are found.
+    noiseOn: false, noiseStrength: p.noise?.strength ?? state.config.grain?.strength ?? 4,
+    dupCheck: true // always re-scan the finished file so the result can say whether repeats remain
   };
+}
+
+// One plain sentence describing what the placement's file will be.
+function presetSummary(p) {
+  const s = p.settings;
+  const kind = s.vcodec === 'prores' ? 'a ProRes MOV file (large)' : `an ${s.container.toUpperCase()} file (H.264)`;
+  const size = s.width && s.height ? `${s.width} x ${s.height}` : 'the same picture size as your video';
+  const vol = p.loudness?.mode && p.loudness.mode !== 'off' ? ', with the volume set automatically to the placement\'s level' : '';
+  return `You'll get ${kind}, ${size}, at your video's own frame rate${vol}.`;
 }
 
 function choosePreset(id) {
@@ -198,14 +227,24 @@ function choosePreset(id) {
   $('preset').value = id; // keep the dropdown in step when a preset is chosen by code or "Reset"
   state.defaults = defaultsFor(state.preset);
   state.settings = { ...state.defaults };
+  state.customize = false;
   const p = state.preset;
-  $('preset-status').replaceChildren(p.status === 'verified'
+  $('preset-status').replaceChildren(p.custom ? '' : p.status === 'verified'
     ? el('span', { class: 'tag ok', text: 'VERIFIED ' + (p.verifiedDate || '') })
-    : el('span', { class: 'tag warn', text: 'UNVERIFIED' }));
-  $('preset-notes').replaceChildren(...[...(p.notes || []), ...(p.loudness?.note ? ['Loudness: ' + p.loudness.note] : [])].map(n => el('li', { text: n })));
+    : el('span', { class: 'tag warn', text: 'SPEC NOT YET CONFIRMED', title: 'These values come from research and have not been confirmed with the placement.' }));
+  $('preset-summary').textContent = p.custom ? 'Choose the settings below. Start from the basics; the expert settings are rarely needed.' : presetSummary(p);
+  $('preset-notes').replaceChildren(...[...(p.notes || []), ...(p.loudness?.note ? ['Volume: ' + p.loudness.note] : [])].map(n => el('li', { text: n })));
   $('preset-source').textContent = 'Source: ' + (p.source?.label || 'none') + (p.source?.url ? ' · ' + p.source.url : '') + (p.verifiedDate ? ' · last verified ' + p.verifiedDate : '');
-  buildSettingsForm(); update();
-  if (state.analysis) renderPreflight(); // redraw the safe-zone guides and statuses for the new preset
+  buildSettingsForm(); showAdvanced(); update();
+  if (state.analysis) renderPreflight(); // redraw the checklist and safe-zone guides for the new placement
+}
+
+// The technical settings are hidden unless Custom is chosen or the user asks for them.
+function showAdvanced() {
+  const on = !!(state.preset.custom || state.customize);
+  $('advanced').classList.toggle('hidden', !on);
+  $('customize-row').classList.toggle('hidden', !!state.preset.custom);
+  $('btn-customize').textContent = state.customize ? 'Hide the technical settings' : 'Change the technical settings';
 }
 
 // ---------- warnings and readiness ----------
@@ -221,7 +260,7 @@ function computeWarnings() {
   if (s.vcodec === 'prores' && s.container === 'mp4') add('bad', 'ProRes cannot be stored in an MP4. Choose MOV.', true);
   if (s.acodec === 'pcm' && s.container === 'mp4') add('bad', 'Uncompressed PCM audio is not supported in MP4 here. Choose MOV or AAC audio.', true);
   const nm = $('outname').value.trim();
-  if (!nm) add('bad', 'Type an output file name.', true);
+  if (!nm) { if (state.src) add('bad', 'Type a file name.', true); }
   else if (/[\\/:*?"<>|]/.test(nm)) add('bad', 'The file name contains characters that are not allowed: \\ / : * ? " < > |', true);
   const rule = checkName(currentFileName(), state.preset.naming);
   $('name-rule').textContent = state.preset.naming?.note || '';
@@ -232,8 +271,7 @@ function computeWarnings() {
   if (!v) { add('bad', 'No video was found in this file.', true); return out; }
 
   if (spec.audioRequired && !src.audio) add('bad', 'This placement requires audio, but the source file has no audio track.', true);
-  if (!src.audio && !spec.audioRequired) add('info', 'The source has no audio. The output will have none.');
-  if (src.audio && src.audio.channels > s.channels) add('info', `Source audio has ${src.audio.channels} channels; it will be mixed down to ${s.channels === 2 ? 'stereo' : 'mono'}.`);
+  if (!src.audio && !spec.audioRequired) add('info', 'Your video has no sound. The new file will have none either.');
 
   const t = targetFormat(s, src);
   // reframing is out of scope: refuse to silently stretch
@@ -246,9 +284,11 @@ function computeWarnings() {
     add('bad', `This placement needs ${aspects.join(' or ')}, but the output would be ${aspectLabel(t.w, t.h)}. This tool does not reframe. Supply a file with the right shape.`, true);
   if (spec.minShortEdge && Math.min(t.w, t.h) < spec.minShortEdge) add('warn', `The short edge is ${Math.min(t.w, t.h)} px; this placement wants at least ${spec.minShortEdge} px.`);
 
-  if (t.convertsFps) add('warn', `Frame rate conversion: ${fmtFps(v.fps)} to ${fmtFps(t.fps)} fps. Conversion can create duplicate or judder frames. Keep the native rate unless the placement forces a change.`);
+  if (t.convertsFps) add('warn', `The frame rate will be changed from ${fmtFps(v.fps)} to ${fmtFps(t.fps)} fps. ` + (t.fps > v.fps
+    ? 'Going up repeats frames, which some placements (Disney+) reject even with grain.'
+    : 'Going down drops frames, so motion can look jerky.') + ` If you can, ask the editor for an export at ${fmtFps(t.fps)} fps instead.`);
   if (spec.allowedFps && !spec.allowedFps.some(f => Math.abs(f - t.fps) / f < 0.001))
-    add('warn', `${fmtFps(t.fps)} fps is not in this placement's allowed list (${spec.allowedFps.map(fmtFps).join(', ')}). Pick one under Frame rate, but note this converts the frame rate.`);
+    add('warn', `This placement accepts ${spec.allowedFps.map(fmtFps).join(', ')} fps, but the file would be ${fmtFps(t.fps)} fps. Best fix: ask the editor for an export at an accepted frame rate. (Changing it here is possible under "Change the technical settings", with grain.)`);
   if (v.cfrLikely === false) add('warn', 'The source looks like variable frame rate. The output is forced to constant frame rate, which can repeat or drop frames.');
   if (!['progressive', 'unknown', ''].includes(v.fieldOrder)) add('warn', `The source is interlaced (${v.fieldOrder}). This tool does not deinterlace. Deinterlace first for placements that need progressive.`);
   if (s.tagBt709 && v.colorSpace && v.colorSpace !== 'bt709') add('warn', `The source colour space is "${v.colorSpace}". Tagging the output BT.709 only changes the label, it does not convert the colours.`);
@@ -267,16 +307,7 @@ function computeWarnings() {
   else if (navigator.deviceMemory && navigator.deviceMemory <= 4 && estMB > 300) add('warn', 'This computer reports very little memory; a large output may fail.');
   if (src.durationSec > 120) add('info', `This clip is ${fmtTime(src.durationSec)} long. Encoding in the browser is slow (often several times the clip length), so expect a long wait.`);
   if (state.file && state.file.size > 2 * 1073741824 && navigator.deviceMemory && navigator.deviceMemory <= 4) add('warn', 'This is a very large source file and this computer reports little memory. It may fail.');
-  // duplicate frames and noise
-  const dupP = state.analysis?.video?.dups?.percent;
-  if (dupP != null && dupP > state.config.strictness.dupPassPercent && !s.noiseOn)
-    add('warn', `The preflight found ${dupP.toFixed(1)}% duplicate frames in the source. Turn on "Prevent duplicate frames" if this placement rejects repeats.`);
-  if (s.noiseOn) {
-    add('info', 'Duplicate-frame prevention adds a very light noise layer to every frame. Strong noise is visible on flat colours and raises the bitrate.');
-    if (s.noiseStrength > 8) add('warn', 'This noise strength is high. It may be visible, and the encoder may smooth it away anyway. Moderate settings (4 to 6) worked best in testing.');
-    if (targetFormat(s, src).convertsFps) add('warn', 'Frame rate conversion creates repeated frames. Noise can hide them, but the real fix is to encode at the native frame rate.');
-  }
-  if (s.loudMode !== 'off' && !src.audio) add('info', 'Audio leveling is set but the source has no audio, so it will be skipped.');
+  if (s.loudMode !== 'off' && !src.audio) add('info', 'Volume leveling is set but your video has no sound, so it will be skipped.');
   if (spec.maxSizeMB && estMB > spec.maxSizeMB) add('warn', `The estimated size (${fmtBytes(est)}) is over this placement's limit of ${spec.maxSizeMB} MB.`);
   return out;
 }
@@ -287,9 +318,33 @@ function update() {
   const blocked = w.some(x => x.block);
   $('btn-encode').disabled = !state.src || blocked || state.running;
   $('btn-check').disabled = !state.src || state.running;
-  $('btn-preflight').disabled = !state.src || state.running;
   $('outext').textContent = '.' + state.settings.container;
   if (!state.src) $('est').textContent = '';
+  updateGrain();
+}
+
+// "Add light grain" is shown only when it can help: the frame rate is being
+// changed, or the automatic check found repeated frames. Off unless switched on.
+// True when the chosen frame rate is higher than the source's, which repeats frames.
+function raisesFps() {
+  if (!state.src) return false;
+  const t = targetFormat(state.settings, state.src);
+  return t.convertsFps && t.fps > state.src.video.fps;
+}
+
+function updateGrain() {
+  const s = state.settings, src = state.src;
+  const converts = raisesFps();
+  const d = state.analysis?.video?.dups;
+  const repeats = !!d && d.percent > state.config.strictness.dupPassPercent;
+  $('grain-row').classList.toggle('hidden', !(converts || repeats || s.noiseOn));
+  $('grain').checked = !!s.noiseOn;
+  let why;
+  if (converts) why = 'Switched on because the frame rate is being raised, which repeats frames. ';
+  else if (d?.conversion) why = 'Your video already has a repeated frame every few frames, a sign it was converted from another frame rate. Grain hides exact repeats, but Disney+ and similar checks may still reject it. A native-frame-rate export from the editor is the real fix. ';
+  else if (repeats) why = `Your video has repeated frames (${d.percent.toFixed(1)}% of frames, longest ${d.longestRunSec.toFixed(1)} s, for example a held end card). Tick this if the placement rejects repeated frames. `;
+  else why = '';
+  $('grain-why').textContent = why + `Grain strength ${s.noiseStrength}: barely visible on flat colour, invisible on normal footage. The finished file is re-checked for repeats.`;
 }
 
 // ---------- source intake ----------
@@ -313,8 +368,7 @@ async function loadFile(file) {
     showError('This does not look like a video file (' + file.name + '). Use a MOV or MP4.'); return;
   }
   if (file.size === 0) { showError('This file is empty (0 bytes). If it lives in a cloud-synced folder, make sure it has finished downloading.'); return; }
-  state.file = file; state.src = null; state.analysis = null; $('sec-preflight').classList.add('hidden'); update();
-  $('source-details').classList.add('hidden');
+  state.file = file; state.src = null; state.analysis = null; $('check-area').classList.add('hidden'); update();
   $('source-status').textContent = 'Reading ' + file.name + '...';
   try {
     await ensureEngine(1, 1, 'Loading the encoder');
@@ -333,7 +387,9 @@ async function loadFile(file) {
   renderSourceDetails();
   // default output name: the source name, cleaned up
   $('outname').value = file.name.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80);
+  state.settings.noiseOn = raisesFps();
   update();
+  onPreflight(); // the automatic check runs straight away
 }
 
 function renderSourceDetails() {
@@ -352,8 +408,7 @@ function renderSourceDetails() {
     ['Audio', a ? `${a.codec}, ${a.sampleRate / 1000} kHz, ${a.channels} ch` + (a.kbps ? ', ' + Math.round(a.kbps) + ' kbps' : '') : 'none'],
     ['Tracks', `${s.videoCount} video, ${s.audioCount} audio` + (s.otherCount ? `, ${s.otherCount} other (ignored)` : '')]
   ];
-  const box = $('source-details'); box.replaceChildren(...rows.map(([k, val]) => el('div', {}, el('span', { text: k }), el('b', { text: val }))));
-  box.classList.remove('hidden');
+  $('source-details').replaceChildren(...rows.map(([k, val]) => el('div', {}, el('span', { text: k }), el('b', { text: val }))));
 }
 
 // ---------- progress ----------
@@ -423,7 +478,7 @@ async function onEncode() {
 
     const { args, notes } = buildArgs(s, state.src, path, memName, { audioFilter });
     if (levelInfo) notes.push(levelInfo);
-    if (s.noiseOn) notes.push(`Duplicate-frame prevention was on (noise strength ${s.noiseStrength}).`);
+    if (s.noiseOn) notes.push(`Light grain was added (strength ${s.noiseStrength}).`);
     await engine.encode(args, timedProgress(label('Encoding video'), dur));
 
     // Measure the finished file while it is still inside the encoder.
@@ -446,7 +501,7 @@ async function onEncode() {
     const savedNote = await saveOutput(blob, outFile, s.container, handle);
 
     hideProgress();
-    const source = { ...state.src, dupPercent: state.analysis?.video?.dups?.percent };
+    const source = { ...state.src, dupPercent: state.analysis?.video?.dups?.percent, conversion: state.analysis?.video?.dups?.conversion };
     const rows = verify(outSummary, s, state.preset, { source, fileName: outFile, strictness: state.config.strictness, extra });
     showResult('Encoded: ' + outFile, rows, notes, savedNote);
   } catch (e) {
@@ -484,11 +539,11 @@ async function onPreflight() {
     startClock();
     const analysis = { audio: null, video: null, thumbs: [] };
     if (src.audio) {
-      showProgress(`Step ${++n} of ${total}: Measuring audio levels`, null);
+      showProgress(`Checking your video, step ${++n} of ${total}: measuring the sound`, null);
       analysis.audio = await measureAudio(engine, path);
     }
-    analysis.video = await scanVideo(engine, path, src.video.fps, st.dupDiffThreshold, pixDepth(src.video.pixFmt), timedProgress(`Step ${++n} of ${total}: Analyzing the picture`, src.durationSec));
-    showProgress(`Step ${++n} of ${total}: Grabbing preview frames`, null); $('eta').textContent = '';
+    analysis.video = await scanVideo(engine, path, src.video.fps, st.dupDiffThreshold, pixDepth(src.video.pixFmt), timedProgress(`Checking your video, step ${++n} of ${total}: looking at every frame`, src.durationSec));
+    showProgress(`Checking your video, step ${++n} of ${total}: grabbing preview frames`, null); $('eta').textContent = '';
     analysis.thumbs = await grabFrames(engine, path, src.durationSec);
     state.analysis = analysis;
     hideProgress(); renderPreflight(); update();
@@ -516,7 +571,7 @@ function renderPreflight() {
   }
   const v = a.video, d = v.dups;
   add('Duplicate frames', `${d.duplicates} of ${d.frames - 1} (${d.percent.toFixed(1)}%)`, d.percent <= st.dupPassPercent ? 'pass' : d.percent <= st.dupWarnPercent ? 'warn' : 'fail',
-    d.duplicates ? `Longest repeat ${d.longestRun} frames (${d.longestRunSec.toFixed(2)} s). ` + (state.preset.noise || spec.noLetterbox ? 'Turn on "Prevent duplicate frames" under Duplicate frames.' : 'Placements that flag repeated frames may reject this.') : '');
+    d.duplicates ? `Longest repeat ${d.longestRun} frames (${d.longestRunSec.toFixed(2)} s). ` + 'Placements that flag repeated frames may reject this. "Add light grain" prevents exact repeats.' : '');
   const bars = describeBars(v.crop, src.video.width, src.video.height, st.barTolerancePx);
   add('Black bars', bars || 'none detected', bars ? (spec.noLetterbox ? 'fail' : 'warn') : 'pass', bars && spec.noLetterbox ? 'This placement does not allow letterboxing or pillarboxing. This must be fixed in the edit.' : '');
   const ends = describeBlackEnds(v.black, src.durationSec); const bp = [];
@@ -527,10 +582,13 @@ function renderPreflight() {
   add('Frame rate type', src.video.cfrLikely === false ? 'possibly variable' : 'constant', src.video.cfrLikely === false ? 'warn' : 'pass', 'Based on the file header. A full frame-by-frame timing check is not done.');
   add('Slate / countdown', 'check the frames below', 'info', 'These cannot be detected reliably by software. Look at the first frame and the frames near the start and end.');
 
+  if (d.conversion) add('Frame rate conversion pattern', `one repeat every ${d.conversion.every} frames`, 'fail', 'Typical of a file converted from another frame rate (for example 23.976 to 29.97).');
   const table = el('table', {}, el('thead', {}, el('tr', {}, ...['Check', 'Result', 'Status', 'Note'].map(h => el('th', { text: h })))));
   const body = el('tbody');
   for (const [l, r, stt, note] of rows) body.append(el('tr', {}, el('td', { text: l }), el('td', { text: r }), el('td', {}, el('span', { class: 'tag ' + stt, text: stt.toUpperCase() })), el('td', { class: 'note', text: note })));
   table.append(body);
+  $('checklist').replaceChildren(...plainChecklist().map(checkItem));
+  $('check-for').textContent = state.preset.custom ? 'your settings' : state.preset.name;
   // Preview frames, with the preset's documented safe-zone guides drawn on top.
   const zones = state.preset.safeZones || [];
   const vw = src.video.width, vh = src.video.height;
@@ -549,8 +607,66 @@ function renderPreflight() {
   if (!zones.length) zoneNote = 'No safe zone is documented for this preset, so no guides are drawn.';
   else if (!usable.length) zoneNote = `This preset's guides are for a ${zones[0].refW} x ${zones[0].refH} frame shape, which does not match this source, so they are not drawn.`;
   else zoneNote = 'Guides: ' + usable.map(z => (z.type === 'safe' ? 'keep content inside the dashed line: ' : 'keep content out of the red box: ') + z.label).join('; ') + '. Check the frames by eye; the tool does not detect content in these areas.';
-  $('preflight-report').replaceChildren(table, ...(zones.length ? [guideBox] : []), thumbs, el('p', { class: 'hint', text: zoneNote }));
-  $('sec-preflight').classList.remove('hidden');
+  $('preflight-report').replaceChildren(el('h3', { text: 'Measurements' }), table);
+  $('thumbs').replaceChildren(el('h3', { text: 'Look at these frames' }),
+    el('p', { class: 'hint', style: 'margin:0', text: 'Check there is no slate, countdown or colour bars at the start, and nothing important under the guides.' }),
+    ...(zones.length ? [guideBox] : []), thumbs, el('p', { class: 'hint', text: zoneNote }));
+  $('check-area').classList.remove('hidden');
+}
+
+// One checklist line: status icon, main text, optional smaller explanation.
+function checkItem([status, text, more]) {
+  const icon = { ok: '✓', warn: '!', bad: '✕', info: 'i' }[status];
+  return el('li', { class: status }, el('span', { class: 'ic', text: icon }), el('div', {}, text, more ? el('small', { text: more }) : null));
+}
+
+// The automatic check in plain words, judged against the chosen placement.
+function plainChecklist() {
+  const a = state.analysis, src = state.src, v = src.video, spec = state.preset.spec, s = state.settings, st = state.config.strictness;
+  const name = state.preset.custom ? 'your settings' : state.preset.name;
+  const out = []; const add = (status, text, more) => out.push([status, text, more]);
+  const t = targetFormat(s, src);
+
+  // Shape and size
+  const aspects = spec.allowedAspects || (spec.aspect ? [spec.aspect] : null);
+  const shapeOk = !aspects || aspects.some(l => Math.abs(v.width / v.height - aspectValue(l)) / aspectValue(l) < 0.01);
+  if (!shapeOk) add('bad', `Wrong shape: ${name} needs ${aspects.join(' or ')}, and this video is ${aspectLabel(v.width, v.height)}.`, 'This tool does not crop or reframe. Ask the creative team for a version in the right shape.');
+  else if (t.scales) add('ok', `Shape is right. The picture will be resized from ${v.width} x ${v.height} to ${t.w} x ${t.h}.`, t.w > v.width ? 'Making a picture bigger than the original can look slightly soft.' : '');
+  else add('ok', `Shape and size are right (${v.width} x ${v.height}).`);
+
+  // Length
+  if (spec.maxDurationSec && src.durationSec > spec.maxDurationSec + st.durationToleranceSec)
+    add('bad', `Too long: ${src.durationSec.toFixed(1)} seconds. ${name} allows up to ${spec.maxDurationSec} seconds.`, 'Ask for a shorter cut.');
+  else add('ok', `Length is ${src.durationSec.toFixed(1)} seconds.`);
+
+  // Frame rate
+  if (spec.allowedFps && !spec.allowedFps.some(f => Math.abs(f - v.fps) / f < 0.001))
+    add('warn', `Frame rate is ${fmtFps(v.fps)} fps. ${name} accepts ${spec.allowedFps.map(fmtFps).join(', ')} fps.`, 'Best fix: ask the editor for an export at an accepted frame rate. Changing it here creates repeated frames.');
+
+  // Sound
+  if (!src.audio) add(spec.audioRequired ? 'bad' : 'info', spec.audioRequired ? `No sound: ${name} requires audio.` : 'This video has no sound.');
+  else if (a.audio?.silent) add(spec.audioRequired ? 'bad' : 'warn', 'The sound track is silent.', spec.audioRequired ? `${name} requires audible sound.` : '');
+  else if (s.loudMode !== 'off') add('ok', `Sound found. The volume will be set automatically to ${name}'s level.`);
+  else add('ok', 'Sound found. The volume will be left as it is.');
+
+  // Repeated frames
+  const d = a.video.dups, strict = !!spec.noDuplicateFrames; // strict = this placement is known to reject repeats
+  if (d.conversion) add(strict ? 'bad' : 'warn', 'This video looks like it was converted from another frame rate (a repeated frame every few frames).',
+    'Disney+ and others reject this as "duplicate frames". Ask the editor for an export at the original frame rate. Grain can hide exact repeats but may not pass their check.');
+  else if (d.percent > st.dupPassPercent) add(strict ? 'warn' : 'info', `Some frames repeat (${d.percent.toFixed(1)}% of frames, longest hold ${d.longestRunSec.toFixed(1)} s), for example a held still or end card.`,
+    strict ? `${name} rejects repeated frames. Tick "Add light grain" below to prevent this.` : 'Usually fine. If a placement ever rejects it for repeated frames, tick "Add light grain" below.');
+  else add('ok', 'No repeated frames.');
+
+  // Black bars and black frames
+  const bars = describeBars(a.video.crop, v.width, v.height, st.barTolerancePx);
+  if (bars) add(spec.noLetterbox ? 'bad' : 'warn', `Black bars found (${bars}).`, spec.noLetterbox ? `${name} does not allow black bars. The picture must fill the frame; this needs fixing in the edit.` : 'Some placements do not allow black bars around the picture.');
+  else add('ok', 'No black bars around the picture.');
+  const ends = describeBlackEnds(a.video.black, src.durationSec);
+  if (ends.start || ends.end) add('warn', 'Black frames at the ' + [ends.start ? `start (${ends.start.toFixed(1)} s)` : '', ends.end ? `end (${ends.end.toFixed(1)} s)` : ''].filter(Boolean).join(' and ') + '.', 'Usually fine, but some placements want the picture to start on the first frame.');
+
+  // Interlacing
+  if (a.video.idet && a.video.idet.interlacedPercent >= 5) add('warn', 'This video is interlaced (an older TV format).', 'Most placements need progressive video. Ask the editor for a progressive export.');
+  return out;
 }
 
 // One safe-zone rectangle, positioned as a percentage of the frame so it scales with the preview.
@@ -594,20 +710,29 @@ function onCheckSource() {
   clearResult(); showError('');
   const extra = state.analysis ? { audio: state.analysis.audio, video: state.analysis.video } : null;
   const rows = verify(state.src, state.settings, state.preset, { source: null, fileName: null, strictness: state.config.strictness, extra });
-  showResult('Check of your source file against "' + state.preset.name + '" (not re-encoded)', rows, state.analysis ? [] : ['Run the preflight analysis first to include loudness, duplicate frames and black bars in this check.'], '');
+  showResult('Check of your video against "' + state.preset.name + '" (no new file made)', rows, state.analysis ? [] : ['The automatic check has not finished, so loudness, repeated frames and black bars are not included.'], '');
 }
 
 // ---------- result and errors ----------
-function clearResult() { $('sec-result').classList.add('hidden'); $('report').replaceChildren(); $('result-head').replaceChildren(); $('btn-download').classList.add('hidden'); $('saved').textContent = ''; }
+function clearResult() { $('sec-result').classList.add('hidden'); $('report').replaceChildren(); $('result-list').replaceChildren(); $('result-head').replaceChildren(); $('btn-download').classList.add('hidden'); $('saved').textContent = ''; }
 
 function showResult(title, rows, notes, savedNote) {
   const ov = overall(rows);
   const count = (st) => rows.filter(r => r.status === st).length;
-  const label = { pass: 'All checks match the documented values', warn: 'Matches, with warnings', fail: 'Some values do not match' }[ov];
+  const where = state.preset.custom ? 'your settings' : state.preset.name;
+  const label = {
+    pass: `Ready for ${where}. The file matches the published spec.`,
+    warn: `Ready for ${where}, with ${count('warn')} thing${count('warn') > 1 ? 's' : ''} to look at.`,
+    fail: `${count('fail')} problem${count('fail') > 1 ? 's' : ''} found. The placement may reject this file.`
+  }[ov];
   $('result-head').replaceChildren(
     el('h3', { text: title, style: 'margin-top:0' }),
-    el('div', { class: 'banner ' + ov, text: `${label}  ·  ${count('pass')} pass, ${count('warn')} warn, ${count('fail')} fail` })
+    el('div', { class: 'banner ' + ov, text: label })
   );
+  // Plain list of only the things that need attention; the full table sits behind "Full technical report".
+  const issues = rows.filter(r => r.status === 'fail' || r.status === 'warn');
+  $('result-list').replaceChildren(...issues.map(r => checkItem([r.status === 'fail' ? 'bad' : 'warn',
+    `${r.label}: ${r.actual}` + (r.expected ? ` (should be ${r.expected})` : ''), r.note || ''])));
   const table = el('table', {}, el('thead', {}, el('tr', {}, ...['Check', 'Expected', 'Actual', 'Result', 'Note'].map(h => el('th', { text: h })))));
   const body = el('tbody');
   for (const r of rows) body.append(el('tr', {}, el('td', { text: r.label }), el('td', { text: r.expected }), el('td', { text: r.actual }),
@@ -675,16 +800,17 @@ async function init() {
   for (const p of state.config.presets) (groups[p.group || 'Other'] ||= []).push(p);
   for (const [g, list] of Object.entries(groups)) {
     const og = el('optgroup', { label: g });
-    for (const p of list) og.append(el('option', { value: p.id, text: p.name + (p.status === 'verified' ? '' : '  [unverified]') }));
+    for (const p of list) og.append(el('option', { value: p.id, text: p.name }));
     sel.append(og);
   }
   sel.addEventListener('change', () => choosePreset(sel.value));
-  $('reset-preset').addEventListener('click', () => choosePreset(state.preset.id));
+  $('reset-preset').addEventListener('click', () => { const keep = state.customize; choosePreset(state.preset.id); state.customize = keep; showAdvanced(); });
+  $('btn-customize').addEventListener('click', () => { state.customize = !state.customize; showAdvanced(); });
+  $('grain').addEventListener('change', () => { state.settings.noiseOn = $('grain').checked; update(); });
   $('outname').addEventListener('input', update);
   $('btn-encode').addEventListener('click', onEncode);
   $('btn-cancel').addEventListener('click', onCancel);
   $('btn-check').addEventListener('click', onCheckSource);
-  $('btn-preflight').addEventListener('click', onPreflight);
   $('btn-download').addEventListener('click', triggerDownload);
   setupDrop();
   setupGuards();

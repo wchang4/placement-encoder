@@ -4,3 +4,4 @@ serve.py
 # Internal design notes, kept local only
 SCOPE.md
 PHASE0-REPORT.md
+testfiles/

@@ -27,7 +27,9 @@ Open `presets.json` in any text editor (Notepad is fine). The instructions are a
    - `spec`: what the report checks the finished file against (bitrate range, allowed frame rates, aspect, size and duration limits, `noLetterbox`).
    - `naming`: file name rule (`maxLength`, `allowedChars`).
    - `loudness`: `mode` is `off`, `lufs` (integrated loudness) or `rms` (average level), with `targetDb` and `peakDb`.
-   - `noise`: add `{"defaultOn": true, "strength": 5}` to turn duplicate-frame prevention on by default.
+   - `group`: `"Main placements"` (top of the list) or `"More placements"`. The preset with `"custom": true` is the Custom option.
+   - `spec.noDuplicateFrames`: `true` for placements known to reject repeated frames (Disney+). The check then treats repeats as a problem instead of information.
+   - Grain (duplicate-frame prevention) is off by default and offered by the page when needed. Its strength is the top-level `grain.strength` (4, tested). Use even numbers only: 1 does nothing and 3 and 5 proved unreliable. A preset can override it with `"noise": {"strength": 6}`.
    - `safeZones` (optional): guides drawn on the preview frames. Each has `label`, `type` (`safe` = keep content inside, `avoid` = keep content out), `x`, `y`, `w`, `h` in pixels on a frame of `refW` x `refH`. Only add zones the placement documents.
 4. When a spec is confirmed with the placement: set `status` to `"verified"`, fill in `verifiedDate` (for example `"2026-11-02"`) and put the link in `source.url`. Presets stay marked UNVERIFIED in the tool until you do this.
 5. A value of `null` means "not specified, keep the source's value".

@@ -212,12 +212,22 @@ function extraRows(summary, settings, preset, extra, st, add, source) {
     // Duplicate frames
     const d = vid.dups, n = Math.max(1, d.frames - 1);
     const pct = d.percent;
-    const status = pct <= st.dupPassPercent ? 'pass' : pct <= st.dupWarnPercent ? 'warn' : 'fail';
+    let status = pct <= st.dupPassPercent ? 'pass' : pct <= st.dupWarnPercent ? 'warn' : 'fail';
+    // Only placements known to reject repeats (spec.noDuplicateFrames), or files where grain
+    // was asked for, are judged on this; elsewhere repeats are reported for information.
+    if (status !== 'pass' && !spec.noDuplicateFrames && !settings.noiseOn && !d.conversion) status = 'info';
     let note = `Longest repeat: ${d.longestRun} frames (${d.longestRunSec.toFixed(2)} s).`;
     if (source?.dupPercent != null) note += ` Source had ${source.dupPercent.toFixed(1)}%.`;
-    if (status !== 'pass') {
-      if (settings.noiseOn) note += ' Noise was on but repeats remain: the encoder can smooth light noise away. Try a different strength (4 to 6 worked best in testing) or a higher bitrate.';
-      else note += ' Turn on duplicate-frame prevention and encode again. If the repeats come from frame rate conversion, encode at the native frame rate instead.';
+    // Grain can hide a converted source's repeats, but a placement may still see the stutter.
+    if (status === 'pass' && source?.conversion) {
+      status = 'warn';
+      note += ` Your video was converted from another frame rate (a repeat every ${source.conversion.every} frames). Grain removed the exact repeats, but the motion still stutters and a placement may still reject it. A native-frame-rate export is safer.`;
+    } else if (status === 'info') {
+      note += ' This placement is not known to reject repeated frames.';
+    } else if (status !== 'pass') {
+      if (d.conversion) note += ` The repeats follow a frame rate conversion pattern (one every ${d.conversion.every} frames). Ask the editor for a native-frame-rate export.`;
+      if (settings.noiseOn) note += ' Grain was on but repeats remain: the encoder can smooth light grain away. Try strength 6 (even numbers only) or a higher bitrate.';
+      else note += ' Turn on "Add light grain" and encode again.';
     }
     add('Duplicate frames', `under ${st.dupPassPercent}% of frames`, `${d.duplicates} of ${n} (${pct.toFixed(1)}%)`, status, note);
 

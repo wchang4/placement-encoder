@@ -25,21 +25,27 @@
   <h1>Placement Encoder: quick guide</h1>
   <p class="dim">Turns one finished video into a file that matches a placement's technical spec, and checks the result. Your video never leaves your computer. <a href="index.html">Open the tool</a></p>
 
-  <div class="panel"><h2>Use it in five steps</h2>
+  <div class="panel"><h2>Use it in four steps</h2>
   <ol>
-    <li><b>Drop your finished video</b> (MOV or MP4, one file) on the box. The first visit downloads the encoder (about 31 MB, once).</li>
-    <li><b>Run preflight analysis</b> (optional, about a minute for a 15 s ad). It reports loudness, duplicate frames, black bars, black frames and interlacing, and shows three frames with the placement's safe-zone guides.</li>
-    <li><b>Pick the placement.</b> The settings fill in. Anything can be changed; changed settings get an amber outline. "Reset to preset" undoes your changes. No placement listed? Start from "Universal" and type in the spec sheet's numbers.</li>
-    <li><b>Type the output file name</b> (including any language letter the placement wants). Orange or red messages under the settings tell you what will go wrong before you wait for an encode.</li>
-    <li><b>Click Encode.</b> In Edge or Chrome you choose where to save first. Keep the tab open and in front. When it finishes you get a PASS / WARN / FAIL table.</li>
+    <li><b>Drop your finished video</b> (MOV or MP4, one file) on the box. The first visit downloads the encoder (about 31 MB, once). The tool then checks your video automatically (about a minute for a 15 s ad) and lists anything a placement could reject, in plain words.</li>
+    <li><b>Choose where it is going</b>, for example Cineplex, Crave / Bell Media, Disney+ or Amazon. All technical settings are filled in for you. The check list updates for that placement.</li>
+    <li><b>Type the file name</b> (including any language letter the placement wants). Red or orange messages tell you what will go wrong before you wait.</li>
+    <li><b>Click "Make the file".</b> In Edge or Chrome you choose where to save first. Keep the tab open and in front. When it finishes you get a one-line verdict and a list of anything to look at.</li>
   </ol></div>
+
+  <div class="panel"><h2>Options you might see</h2>
+  <ul>
+    <li><b>Add light grain</b> appears when your video has repeated frames (for example a held end card) or when the frame rate is being raised. It adds barely visible grain so a placement's checker does not see identical frames. Tick it for placements that reject repeats, such as Disney+.</li>
+    <li><b>Frame rate</b> is always kept as your video's own unless you change it. Changing it is a last resort: ask the editor for an export at the right frame rate instead.</li>
+    <li><b>Change the technical settings</b> or <b>Custom</b> show the settings for video professionals. Most people never need them.</li>
+  </ul></div>
 
   <div class="panel"><h2>Reading the result</h2>
   <ul>
-    <li><b>PASS</b>: matches the spec value. <b>WARN</b>: close, or something to look at. <b>FAIL</b>: does not match. Fix it and encode again, or ask the placement.</li>
+    <li><b>Ready</b>: the file matches the placement's published spec. <b>Things to look at</b>: probably fine, but read the notes. <b>Problems found</b>: fix them and make the file again, or ask the placement.</li>
     <li>This is a <b>technical check</b>, not a guarantee. Placements can still reject a file for content reasons.</li>
-    <li>Presets marked <b>UNVERIFIED</b> have not been confirmed with the placement. Check against the spec sheet you were given.</li>
-    <li>"Check source against preset" tests your original file without encoding.</li>
+    <li>Placements marked <b>SPEC NOT YET CONFIRMED</b> come from research and have not been confirmed with the placement. Check against the spec sheet you were given.</li>
+    <li>"Only check my video" tests your original file without making a new one. "Full technical report" shows every value.</li>
   </ul></div>
 
   <div class="panel"><h2>Things the tool cannot fix</h2>
@@ -47,13 +53,13 @@
     <li><b>Black bars (letterbox)</b> and slates or countdowns: fix in the edit.</li>
     <li><b>Wrong shape</b> (for example a 16:9 file for a 9:16 placement): the tool never crops or reframes. Ask for the right master.</li>
     <li><b>Audio too dynamic for the target</b> (for example Cineplex's average -12 / peak -8 dB): the tool limits peaks but does not compress, so the average can fall short. The report shows the real number.</li>
-    <li><b>Duplicate frames</b>: "Prevent duplicate frames" adds a very light noise layer and greatly reduces repeats, but may not reach zero. The report shows the count after encoding.</li>
+    <li><b>A video converted from another frame rate</b> (the check says "a repeated frame every few frames"): grain hides the exact repeats, but Disney+ and others may still reject the stutter. Ask the editor for an export at the original frame rate.</li>
   </ul></div>
 
   <div class="panel"><h2>If something goes wrong</h2>
   <ul>
     <li><b>Slow:</b> normal. A 30 s HD clip can take several minutes. The progress bar shows time left once it has data.</li>
-    <li><b>"Out of memory" or the tab crashes:</b> close other tabs and programs. Use H.264 instead of ProRes for long clips, or lower the bitrate. Large ProRes outputs (over about 0.8 GB) may fail on 8 GB computers.</li>
+    <li><b>"Out of memory" or the tab crashes:</b> close other tabs and programs. Choose a placement that uses MP4 instead of ProRes for long clips. Large ProRes outputs (over about 0.8 GB) may fail on 8 GB computers.</li>
     <li><b>Stuck or wrong?</b> Press Cancel, reload the page, and try again. Nothing is saved from a cancelled job.</li>
     <li><b>Use Edge or Chrome.</b> Firefox and Safari are untested.</li>
     <li>Spec looks wrong or out of date? Tell the person who maintains the tool; presets are edited in <code>presets.json</code>.</li>

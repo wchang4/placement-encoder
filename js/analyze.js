@@ -48,11 +48,31 @@ export function parseFrameDiffs(lines, bitDepth = 8) {
 // Turn the diff list into duplicate-frame statistics.
 export function dupStats(diffs, fps, threshold) {
   const total = diffs.length + 1; // N frames give N-1 comparisons
-  let dups = 0, run = 0, longest = 0;
-  for (const d of diffs) {
-    if (d < threshold) { dups++; run++; longest = Math.max(longest, run); } else run = 0;
-  }
-  return { frames: total, duplicates: dups, percent: total > 1 ? 100 * dups / (total - 1) : 0, longestRun: longest, longestRunSec: fps ? longest / fps : 0 };
+  let dups = 0, run = 0, longest = 0, held = 0;
+  const singles = []; // positions of repeats that last exactly one frame
+  diffs.forEach((d, i) => {
+    if (d < threshold) { dups++; run++; longest = Math.max(longest, run); }
+    else { if (run === 1) singles.push(i - 1); else if (run > 1) held += run; run = 0; }
+  });
+  if (run === 1) singles.push(diffs.length - 1); else if (run > 1) held += run;
+  return {
+    frames: total, duplicates: dups, percent: total > 1 ? 100 * dups / (total - 1) : 0,
+    longestRun: longest, longestRunSec: fps ? longest / fps : 0,
+    heldFrames: held,                     // repeats that belong to held stills (2+ frames in a row)
+    conversion: conversionPattern(singles, total)
+  };
+}
+
+// Frame rate conversion leaves a tell-tale rhythm: a single repeated frame every
+// 4 to 6 frames (for example 23.976 to 29.97 repeats every 5th frame). Disney's
+// "duplicate frames" rejection is about exactly this. Returns { every: N } or null.
+function conversionPattern(singles, total) {
+  if (singles.length < 8 || singles.length < 0.08 * total) return null;
+  const gaps = {};
+  for (let i = 1; i < singles.length; i++) { const g = singles[i] - singles[i - 1]; gaps[g] = (gaps[g] || 0) + 1; }
+  const [best, count] = Object.entries(gaps).sort((a, b) => b[1] - a[1])[0] || [];
+  if (!best || +best < 3 || +best > 12 || count < 0.6 * (singles.length - 1)) return null;
+  return { every: +best };
 }
 
 export function parseCrop(lines) {
