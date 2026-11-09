@@ -1,0 +1,800 @@
+{
+  "_readme": [
+    "HOW TO EDIT THIS FILE (no coding needed):",
+    "1. To change a value, edit the number or text after the colon. Keep the quotes around text, and keep the commas.",
+    "2. To add a placement, copy one whole preset block (from { to the matching }) , paste it after the last one, add a comma between blocks, and change the values.",
+    "3. Each preset has 'settings' (what the form is filled with) and 'spec' (what the report checks the finished file against).",
+    "4. When you confirm a spec with the placement, set status to \"verified\", fill in verifiedDate, and add the source link.",
+    "5. A value of null means 'not specified / keep the source file's value'.",
+    "Bitrates are in kilobits per second (kbps). 10000 kbps = 10 Mbps. 'minKbps' and 'maxKbps' are the range the report checks; 'bitrateKbps' is the default the form starts with.",
+    "'loudness' modes: off (do nothing), lufs (targetDb = integrated LUFS, peakDb = true peak limit), rms (targetDb = average RMS level, peakDb = peak limit). 'noise': add {\"defaultOn\": true, \"strength\": 5} to switch duplicate-frame prevention on by default for a placement. 'noLetterbox': true makes black bars a FAIL in the report.",
+    "'safeZones' (optional): guides drawn over the preview frames. Each has a label, type ('safe' = keep content inside, 'avoid' = keep content out), and x, y, w, h in pixels on a reference frame of refW x refH. Only add zones that are documented by the placement."
+  ],
+  "strictness": {
+    "_note": "How the report decides PASS / WARN / FAIL. Loudness within loudnessPassDb of target = PASS, within loudnessWarnDb = WARN, else FAIL. A frame counts as a duplicate when its average brightness differs from the previous frame by less than dupDiffThreshold (0 to 255 scale).",
+    "bitrateWarnPercent": 10,
+    "sizeWarnPercent": 10,
+    "durationToleranceSec": 0.1,
+    "fpsTolerancePercent": 0.1,
+    "loudnessPassDb": 0.5,
+    "loudnessWarnDb": 1.5,
+    "peakWarnDb": 0.5,
+    "dupDiffThreshold": 0.05,
+    "dupPassPercent": 0.5,
+    "dupWarnPercent": 5,
+    "barTolerancePx": 4
+  },
+  "limits": {
+    "_note": "Browser memory guard. Based on ONE test point (a 526 MB ProRes output worked, using about 2.3 GB of browser memory). Adjust after more testing.",
+    "memoryWarnMB": 800,
+    "memoryBlockMB": 1500
+  },
+  "presets": [
+    {
+      "id": "universal",
+      "name": "Universal (H.264 MP4)",
+      "group": "General",
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "Generic values accepted by most ad platforms. Not a specific platform spec.",
+        "url": ""
+      },
+      "notes": [
+        "Starting point for any placement not listed. Edit any value to match the spec sheet you were given."
+      ],
+      "settings": {
+        "container": "mp4",
+        "vcodec": "h264",
+        "h264Profile": "high",
+        "proresProfile": "hq",
+        "pixFmt": "yuv420p",
+        "width": 1920,
+        "height": 1080,
+        "fps": "native",
+        "bitrateMode": "vbr",
+        "bitrateKbps": 15000,
+        "x264Preset": "fast",
+        "bframes": 2,
+        "gopSeconds": 0.5,
+        "closedGop": true,
+        "faststart": true,
+        "stripEditLists": true,
+        "tagBt709": true,
+        "acodec": "aac",
+        "sampleRate": 48000,
+        "bitDepth": 16,
+        "channels": 2,
+        "audioKbps": 320
+      },
+      "spec": {
+        "minKbps": 10000,
+        "maxKbps": 40000,
+        "allowedFps": null,
+        "aspect": "16:9",
+        "minShortEdge": null,
+        "audioRequired": true,
+        "minAudioKbps": 192,
+        "maxSizeMB": null,
+        "maxDurationSec": null,
+        "h264ProfilesAllowed": [
+          "High",
+          "Main"
+        ],
+        "noLetterbox": false
+      },
+      "naming": {
+        "maxLength": null,
+        "allowedChars": null,
+        "note": ""
+      },
+      "loudness": {
+        "mode": "off",
+        "note": "Choose a loudness mode under Loudness if the spec asks for one. Quick picks are provided."
+      }
+    },
+    {
+      "id": "cineplex-preshow",
+      "name": "Cineplex Pre-Show",
+      "group": "Cinema",
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "Cineplex Media Digital Pre-Show specs, May 2024 (PDF supplied by team; link not yet added)",
+        "url": ""
+      },
+      "notes": [
+        "The source PDF lists the average level as both -12 dB and -10 dB. Confirm with Cineplex. Peaks should not exceed -8 dB.",
+        "The PDF says 8-bit, but ProRes 422 HQ is normally 10-bit. Confirm with Cineplex. This preset uses standard 10-bit ProRes 422 HQ.",
+        "File names: max 12 characters, no special characters, end with a language letter (E = English, F = French), for example NAMEE.MOV. Type the name yourself.",
+        "Text-safe area is 1724 x 972. Video files only, no stills."
+      ],
+      "settings": {
+        "container": "mov",
+        "vcodec": "prores",
+        "h264Profile": "high",
+        "proresProfile": "hq",
+        "pixFmt": "yuv422p10le",
+        "width": 1920,
+        "height": 1080,
+        "fps": "native",
+        "bitrateMode": "vbr",
+        "bitrateKbps": 220000,
+        "x264Preset": "fast",
+        "bframes": 2,
+        "gopSeconds": 0.5,
+        "closedGop": true,
+        "faststart": false,
+        "stripEditLists": false,
+        "tagBt709": true,
+        "acodec": "pcm",
+        "sampleRate": 48000,
+        "bitDepth": 16,
+        "channels": 2,
+        "audioKbps": 1536
+      },
+      "spec": {
+        "minKbps": null,
+        "maxKbps": null,
+        "allowedFps": [
+          23.976,
+          29.97
+        ],
+        "aspect": "16:9",
+        "minShortEdge": null,
+        "audioRequired": true,
+        "minAudioKbps": null,
+        "maxSizeMB": null,
+        "maxDurationSec": null,
+        "h264ProfilesAllowed": null,
+        "noLetterbox": false
+      },
+      "naming": {
+        "maxLength": 12,
+        "allowedChars": "A-Za-z0-9",
+        "note": "Max 12 characters before the extension, letters and numbers only, end with a language letter."
+      },
+      "loudness": {
+        "mode": "rms",
+        "targetDb": -12,
+        "peakDb": -8,
+        "note": "Cineplex 'average' level is treated here as average (RMS) level. The source PDF also lists -10 dB; confirm with Cineplex."
+      },
+      "safeZones": [
+        {
+          "label": "Text-safe area (1724 x 972)",
+          "type": "safe",
+          "x": 98,
+          "y": 54,
+          "w": 1724,
+          "h": 972,
+          "refW": 1920,
+          "refH": 1080
+        }
+      ]
+    },
+    {
+      "id": "cineplex-lobby",
+      "name": "Cineplex Lobby Show",
+      "group": "Cinema",
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "Team notes. Link not yet added.",
+        "url": ""
+      },
+      "notes": [
+        "1920 x 1080. No audio plays in the lobby. If a client has both contracts, the Pre-Show file can serve both."
+      ],
+      "settings": {
+        "container": "mov",
+        "vcodec": "prores",
+        "h264Profile": "high",
+        "proresProfile": "hq",
+        "pixFmt": "yuv422p10le",
+        "width": 1920,
+        "height": 1080,
+        "fps": "native",
+        "bitrateMode": "vbr",
+        "bitrateKbps": 220000,
+        "x264Preset": "fast",
+        "bframes": 2,
+        "gopSeconds": 0.5,
+        "closedGop": true,
+        "faststart": false,
+        "stripEditLists": false,
+        "tagBt709": true,
+        "acodec": "pcm",
+        "sampleRate": 48000,
+        "bitDepth": 16,
+        "channels": 2,
+        "audioKbps": 1536
+      },
+      "spec": {
+        "minKbps": null,
+        "maxKbps": null,
+        "allowedFps": [
+          23.976,
+          29.97
+        ],
+        "aspect": "16:9",
+        "minShortEdge": null,
+        "audioRequired": false,
+        "minAudioKbps": null,
+        "maxSizeMB": null,
+        "maxDurationSec": null,
+        "h264ProfilesAllowed": null,
+        "noLetterbox": false
+      },
+      "naming": {
+        "maxLength": 12,
+        "allowedChars": "A-Za-z0-9",
+        "note": "Assumed to follow the Pre-Show naming rule. Confirm."
+      },
+      "loudness": {
+        "mode": "off",
+        "note": "No audio plays."
+      }
+    },
+    {
+      "id": "landmark-preshow",
+      "name": "Landmark Cinemas Pre-Show (PLACEHOLDER)",
+      "group": "Cinema",
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "NO PUBLIC SPECS FOUND. Cloned from Cineplex Pre-Show until Landmark's sales rep supplies the real spec. Landmark uses Broadsign.",
+        "url": ""
+      },
+      "notes": [
+        "PLACEHOLDER ONLY. Do not rely on these values. Replace them when the spec arrives."
+      ],
+      "settings": {
+        "container": "mov",
+        "vcodec": "prores",
+        "h264Profile": "high",
+        "proresProfile": "hq",
+        "pixFmt": "yuv422p10le",
+        "width": 1920,
+        "height": 1080,
+        "fps": "native",
+        "bitrateMode": "vbr",
+        "bitrateKbps": 220000,
+        "x264Preset": "fast",
+        "bframes": 2,
+        "gopSeconds": 0.5,
+        "closedGop": true,
+        "faststart": false,
+        "stripEditLists": false,
+        "tagBt709": true,
+        "acodec": "pcm",
+        "sampleRate": 48000,
+        "bitDepth": 16,
+        "channels": 2,
+        "audioKbps": 1536
+      },
+      "spec": {
+        "minKbps": null,
+        "maxKbps": null,
+        "allowedFps": null,
+        "aspect": "16:9",
+        "minShortEdge": null,
+        "audioRequired": true,
+        "minAudioKbps": null,
+        "maxSizeMB": null,
+        "maxDurationSec": null,
+        "h264ProfilesAllowed": null
+      },
+      "naming": {
+        "maxLength": null,
+        "allowedChars": null,
+        "note": "Unknown."
+      },
+      "loudness": {
+        "mode": "off",
+        "note": "Unknown."
+      }
+    },
+    {
+      "id": "disney-h264",
+      "name": "Disney+ (H.264)",
+      "group": "Streaming",
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "Disney Ad Sales US media kit (via team notes). Canadian requirements not yet checked.",
+        "url": ""
+      },
+      "notes": [
+        "The notes say 'Main profile, 4:2:2'. H.264 Main profile cannot carry 4:2:2 (that needs High 4:2:2), so one of the two is wrong. This preset uses High 4:2:2. Confirm with Disney.",
+        "Constant frame rate, native, no pulldown, progressive. No letterboxing or pillarboxing on 16:9 content. No slates or countdowns. One video track and one audio track.",
+        "Keep important content out of the top-right 220 x 135 px (player ad overlay).",
+        "Max file size: 250 MB if Hulu-served, 1.9 GB for partner or programmatic. This preset checks 1900 MB. Change it if needed.",
+        "Duplicate-frame prevention is ON by default for this preset (light temporal noise). Check the result report to confirm it worked."
+      ],
+      "settings": {
+        "container": "mp4",
+        "vcodec": "h264",
+        "h264Profile": "high422",
+        "proresProfile": "hq",
+        "pixFmt": "yuv422p",
+        "width": 1920,
+        "height": 1080,
+        "fps": "native",
+        "bitrateMode": "cbr",
+        "bitrateKbps": 20000,
+        "x264Preset": "fast",
+        "bframes": 2,
+        "gopSeconds": 0.5,
+        "closedGop": true,
+        "faststart": true,
+        "stripEditLists": true,
+        "tagBt709": true,
+        "acodec": "aac",
+        "sampleRate": 48000,
+        "bitDepth": 16,
+        "channels": 2,
+        "audioKbps": 256
+      },
+      "spec": {
+        "minKbps": 10000,
+        "maxKbps": 40000,
+        "allowedFps": [
+          23.976,
+          24,
+          25,
+          29.97,
+          30
+        ],
+        "aspect": "16:9",
+        "minShortEdge": null,
+        "audioRequired": true,
+        "minAudioKbps": 128,
+        "maxSizeMB": 1900,
+        "maxDurationSec": null,
+        "h264ProfilesAllowed": [
+          "Main",
+          "High",
+          "High 4:2:2"
+        ],
+        "noLetterbox": true
+      },
+      "naming": {
+        "maxLength": null,
+        "allowedChars": null,
+        "note": ""
+      },
+      "loudness": {
+        "mode": "off",
+        "note": "No target known. Phase 2: type one in."
+      },
+      "noise": {
+        "defaultOn": true,
+        "strength": 5
+      },
+      "safeZones": [
+        {
+          "label": "Player ad overlay, keep clear (220 x 135)",
+          "type": "avoid",
+          "x": 1700,
+          "y": 0,
+          "w": 220,
+          "h": 135,
+          "refW": 1920,
+          "refH": 1080
+        }
+      ]
+    },
+    {
+      "id": "disney-prores",
+      "name": "Disney+ (ProRes 422 HQ)",
+      "group": "Streaming",
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "Disney Ad Sales US media kit (via team notes). Canadian requirements not yet checked.",
+        "url": ""
+      },
+      "notes": [
+        "Same rules as Disney+ (H.264) but delivered as ProRes 422 HQ in a MOV. Files are large: check the size estimate before encoding.",
+        "Duplicate-frame prevention is ON by default for this preset (light temporal noise). Check the result report to confirm it worked."
+      ],
+      "settings": {
+        "container": "mov",
+        "vcodec": "prores",
+        "h264Profile": "high",
+        "proresProfile": "hq",
+        "pixFmt": "yuv422p10le",
+        "width": 1920,
+        "height": 1080,
+        "fps": "native",
+        "bitrateMode": "vbr",
+        "bitrateKbps": 220000,
+        "x264Preset": "fast",
+        "bframes": 2,
+        "gopSeconds": 0.5,
+        "closedGop": true,
+        "faststart": false,
+        "stripEditLists": false,
+        "tagBt709": true,
+        "acodec": "pcm",
+        "sampleRate": 48000,
+        "bitDepth": 16,
+        "channels": 2,
+        "audioKbps": 1536
+      },
+      "spec": {
+        "minKbps": null,
+        "maxKbps": null,
+        "allowedFps": [
+          23.976,
+          24,
+          25,
+          29.97,
+          30
+        ],
+        "aspect": "16:9",
+        "minShortEdge": null,
+        "audioRequired": true,
+        "minAudioKbps": null,
+        "maxSizeMB": 1900,
+        "maxDurationSec": null,
+        "h264ProfilesAllowed": null,
+        "noLetterbox": true
+      },
+      "naming": {
+        "maxLength": null,
+        "allowedChars": null,
+        "note": ""
+      },
+      "loudness": {
+        "mode": "off",
+        "note": "No target known."
+      },
+      "noise": {
+        "defaultOn": true,
+        "strength": 5
+      },
+      "safeZones": [
+        {
+          "label": "Player ad overlay, keep clear (220 x 135)",
+          "type": "avoid",
+          "x": 1700,
+          "y": 0,
+          "w": 220,
+          "h": 135,
+          "refW": 1920,
+          "refH": 1080
+        }
+      ]
+    },
+    {
+      "id": "amazon-prime",
+      "name": "Amazon Prime Video (Streaming TV)",
+      "group": "Streaming",
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "Team notes. Link not yet added.",
+        "url": ""
+      },
+      "notes": [
+        "Minimum 15 Mbps video; 50 Mbps recommended for Prime Video. This preset targets 25 Mbps. Raise it if the placement asks for more, but watch the 500 MB limit.",
+        "Constant frame rate. Audio minimum 192 kbps."
+      ],
+      "settings": {
+        "container": "mp4",
+        "vcodec": "h264",
+        "h264Profile": "high",
+        "proresProfile": "hq",
+        "pixFmt": "yuv420p",
+        "width": 1920,
+        "height": 1080,
+        "fps": "native",
+        "bitrateMode": "vbr",
+        "bitrateKbps": 25000,
+        "x264Preset": "fast",
+        "bframes": 2,
+        "gopSeconds": 0.5,
+        "closedGop": true,
+        "faststart": true,
+        "stripEditLists": true,
+        "tagBt709": true,
+        "acodec": "aac",
+        "sampleRate": 48000,
+        "bitDepth": 16,
+        "channels": 2,
+        "audioKbps": 256
+      },
+      "spec": {
+        "minKbps": 15000,
+        "maxKbps": null,
+        "allowedFps": null,
+        "aspect": "16:9",
+        "minShortEdge": null,
+        "audioRequired": true,
+        "minAudioKbps": 192,
+        "maxSizeMB": 500,
+        "maxDurationSec": null,
+        "h264ProfilesAllowed": [
+          "High",
+          "Main"
+        ],
+        "noLetterbox": false
+      },
+      "naming": {
+        "maxLength": null,
+        "allowedChars": null,
+        "note": ""
+      },
+      "loudness": {
+        "mode": "off",
+        "note": "No target known."
+      }
+    },
+    {
+      "id": "spotify-video",
+      "name": "Spotify Video Ad",
+      "group": "Audio platforms",
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "Team notes. Link not yet added.",
+        "url": ""
+      },
+      "notes": [
+        "30 seconds or less, max 500 MB, 9:16 or 16:9, at least about 720 x 1280. Audio is required (no silent files).",
+        "Loudness: RMS -14 dBFS with peak -0.2 dBFS (Phase 2). RMS is not the same as LUFS; the tool will label which it measures.",
+        "Resolution is left as the source's. Vertical files must be supplied by the creative team; this tool does not reframe."
+      ],
+      "settings": {
+        "container": "mp4",
+        "vcodec": "h264",
+        "h264Profile": "high",
+        "proresProfile": "hq",
+        "pixFmt": "yuv420p",
+        "width": null,
+        "height": null,
+        "fps": "native",
+        "bitrateMode": "vbr",
+        "bitrateKbps": 12000,
+        "x264Preset": "fast",
+        "bframes": 2,
+        "gopSeconds": 0.5,
+        "closedGop": true,
+        "faststart": true,
+        "stripEditLists": true,
+        "tagBt709": true,
+        "acodec": "aac",
+        "sampleRate": 48000,
+        "bitDepth": 16,
+        "channels": 2,
+        "audioKbps": 256
+      },
+      "spec": {
+        "minKbps": null,
+        "maxKbps": null,
+        "allowedFps": null,
+        "aspect": null,
+        "minShortEdge": 720,
+        "audioRequired": true,
+        "minAudioKbps": null,
+        "maxSizeMB": 500,
+        "maxDurationSec": 30,
+        "h264ProfilesAllowed": null,
+        "allowedAspects": [
+          "9:16",
+          "16:9"
+        ]
+      },
+      "naming": {
+        "maxLength": null,
+        "allowedChars": null,
+        "note": ""
+      },
+      "loudness": {
+        "mode": "rms",
+        "targetDb": -14,
+        "peakDb": -0.2,
+        "note": "RMS target, not LUFS."
+      }
+    },
+    {
+      "id": "youtube",
+      "name": "YouTube Upload",
+      "group": "Social / video platforms",
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "Team notes (YouTube recommended upload settings). Link not yet added.",
+        "url": ""
+      },
+      "notes": [
+        "MP4, no edit lists, moov atom at the front, H.264 High, progressive, 2 consecutive B-frames, closed GOP at half the frame rate, 4:2:0, BT.709, VBR, same frame rate as the source.",
+        "1080p about 8 Mbps (12 Mbps for 48 to 60 fps). Audio AAC-LC stereo 48 kHz at 384 kbps.",
+        "This tool does not deinterlace. Interlaced sources show a warning."
+      ],
+      "settings": {
+        "container": "mp4",
+        "vcodec": "h264",
+        "h264Profile": "high",
+        "proresProfile": "hq",
+        "pixFmt": "yuv420p",
+        "width": null,
+        "height": null,
+        "fps": "native",
+        "bitrateMode": "vbr",
+        "bitrateKbps": 8000,
+        "x264Preset": "fast",
+        "bframes": 2,
+        "gopSeconds": 0.5,
+        "closedGop": true,
+        "faststart": true,
+        "stripEditLists": true,
+        "tagBt709": true,
+        "acodec": "aac",
+        "sampleRate": 48000,
+        "bitDepth": 16,
+        "channels": 2,
+        "audioKbps": 384
+      },
+      "spec": {
+        "minKbps": 6000,
+        "maxKbps": 16000,
+        "allowedFps": null,
+        "aspect": null,
+        "minShortEdge": null,
+        "audioRequired": true,
+        "minAudioKbps": 320,
+        "maxSizeMB": null,
+        "maxDurationSec": null,
+        "h264ProfilesAllowed": [
+          "High"
+        ],
+        "noLetterbox": false
+      },
+      "naming": {
+        "maxLength": null,
+        "allowedChars": null,
+        "note": ""
+      },
+      "loudness": {
+        "mode": "off",
+        "note": "YouTube normalizes loudness itself."
+      }
+    },
+    {
+      "id": "youtube-shorts",
+      "name": "YouTube Shorts (UNVERIFIED)",
+      "group": "Social / video platforms",
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "Third-party summaries. Not confirmed. Unknown whether organic Shorts or Shorts ad placements are needed; ad specs may differ.",
+        "url": ""
+      },
+      "notes": [
+        "9:16, 1080 x 1920, MP4 or MOV, up to 3 minutes. Keep key content inside a centred 4:5 area.",
+        "The vertical file must come from the creative team; this tool does not reframe."
+      ],
+      "settings": {
+        "container": "mp4",
+        "vcodec": "h264",
+        "h264Profile": "high",
+        "proresProfile": "hq",
+        "pixFmt": "yuv420p",
+        "width": 1080,
+        "height": 1920,
+        "fps": "native",
+        "bitrateMode": "vbr",
+        "bitrateKbps": 10000,
+        "x264Preset": "fast",
+        "bframes": 2,
+        "gopSeconds": 0.5,
+        "closedGop": true,
+        "faststart": true,
+        "stripEditLists": true,
+        "tagBt709": true,
+        "acodec": "aac",
+        "sampleRate": 48000,
+        "bitDepth": 16,
+        "channels": 2,
+        "audioKbps": 384
+      },
+      "spec": {
+        "minKbps": null,
+        "maxKbps": null,
+        "allowedFps": null,
+        "aspect": "9:16",
+        "minShortEdge": null,
+        "audioRequired": true,
+        "minAudioKbps": null,
+        "maxSizeMB": null,
+        "maxDurationSec": 180,
+        "h264ProfilesAllowed": null
+      },
+      "naming": {
+        "maxLength": null,
+        "allowedChars": null,
+        "note": ""
+      },
+      "loudness": {
+        "mode": "off",
+        "note": ""
+      },
+      "safeZones": [
+        {
+          "label": "Centred 4:5 area (UNVERIFIED, third-party summary)",
+          "type": "safe",
+          "x": 0,
+          "y": 285,
+          "w": 1080,
+          "h": 1350,
+          "refW": 1080,
+          "refH": 1920
+        }
+      ]
+    },
+    {
+      "id": "meta-vertical",
+      "name": "Meta Reels / Stories (UNVERIFIED)",
+      "group": "Social / video platforms",
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "Third-party summaries. Verify against Meta's own ad specs. Safe zones not yet documented here.",
+        "url": ""
+      },
+      "notes": [
+        "MP4 or MOV, H.264, max 4 GB. 9:16 at 1080 x 1920 with a 720 px minimum short edge. Reels ads up to 90 seconds, Stories up to 120 seconds.",
+        "This preset checks the stricter 90 seconds. Change maxDurationSec to 120 for Stories.",
+        "The vertical file must come from the creative team; this tool does not reframe."
+      ],
+      "settings": {
+        "container": "mp4",
+        "vcodec": "h264",
+        "h264Profile": "high",
+        "proresProfile": "hq",
+        "pixFmt": "yuv420p",
+        "width": 1080,
+        "height": 1920,
+        "fps": "native",
+        "bitrateMode": "vbr",
+        "bitrateKbps": 10000,
+        "x264Preset": "fast",
+        "bframes": 2,
+        "gopSeconds": 0.5,
+        "closedGop": true,
+        "faststart": true,
+        "stripEditLists": true,
+        "tagBt709": true,
+        "acodec": "aac",
+        "sampleRate": 48000,
+        "bitDepth": 16,
+        "channels": 2,
+        "audioKbps": 256
+      },
+      "spec": {
+        "minKbps": null,
+        "maxKbps": null,
+        "allowedFps": null,
+        "aspect": "9:16",
+        "minShortEdge": 720,
+        "audioRequired": true,
+        "minAudioKbps": null,
+        "maxSizeMB": 4096,
+        "maxDurationSec": 90,
+        "h264ProfilesAllowed": null
+      },
+      "naming": {
+        "maxLength": null,
+        "allowedChars": null,
+        "note": ""
+      },
+      "loudness": {
+        "mode": "off",
+        "note": ""
+      }
+    }
+  ]
+}

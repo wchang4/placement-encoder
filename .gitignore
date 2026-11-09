@@ -1,0 +1,6 @@
+spike/
+serve.py
+*.log
+# Internal design notes, kept local only
+SCOPE.md
+PHASE0-REPORT.md
