@@ -75,9 +75,16 @@ function conversionPattern(singles, total) {
   return { every: +best };
 }
 
+// cropdetect runs per frame (reset=1), so bars that cover only part of the video
+// (for example a widescreen film followed by a full-frame end card) are still found.
+// Returns { frames: [{w,h,x,y}, ...] } or null.
 export function parseCrop(lines) {
-  const m = lastMatch(lines.join('\n'), /crop=(\d+):(\d+):(\d+):(\d+)/);
-  return m ? { w: +m[1], h: +m[2], x: +m[3], y: +m[4] } : null;
+  const frames = [];
+  for (const l of lines) {
+    const m = /crop=(\d+):(\d+):(\d+):(\d+)/.exec(l);
+    if (m) frames.push({ w: +m[1], h: +m[2], x: +m[3], y: +m[4] });
+  }
+  return frames.length ? { frames } : null;
 }
 
 export function parseBlack(lines) {
@@ -141,7 +148,8 @@ export async function scanDuplicates(engine, path, fps, threshold, bitDepth, onT
 export async function scanVideo(engine, path, fps, threshold, bitDepth, onTime) {
   const vf = [
     'idet',
-    'cropdetect=limit=24:round=2:reset=0',
+    // limit as a fraction (24/255) so it means the same for 8-bit H.264 and 10-bit ProRes
+    'cropdetect=limit=0.094:round=2:reset=1',
     'blackdetect=d=0.05:pix_th=0.10',
     'extractplanes=y',
     'tblend=all_mode=difference',
@@ -177,14 +185,32 @@ export async function grabFrames(engine, path, durationSec) {
 // ---------- interpreting the numbers ----------
 
 // Describe black bars: returns null when there are none worth reporting.
+// Frames that are mostly dark (fades, night shots) give tiny crops that are not real
+// bars, so frames whose detected picture is under half the frame area are ignored.
+// Bars are reported when they appear in at least 10% of the remaining frames.
 export function describeBars(crop, w, h, tol = 4) {
-  if (!crop) return null;
-  const top = crop.y, bottom = h - crop.h - crop.y, left = crop.x, right = w - crop.w - crop.x;
-  if (Math.max(top, bottom, left, right) < tol) return null;
+  if (!crop || !crop.frames) return null;
+  const usable = crop.frames.filter(c => c.w * c.h >= 0.5 * w * h);
+  if (!usable.length) return null;
+  const barsOf = (c) => ({ top: c.y, bottom: h - c.h - c.y, left: c.x, right: w - c.w - c.x });
+  const counts = new Map();
+  let barred = 0;
+  for (const c of usable) {
+    const b = barsOf(c);
+    if (Math.max(b.top, b.bottom, b.left, b.right) < tol) continue;
+    barred++;
+    const key = `${c.w}:${c.h}:${c.x}:${c.y}`;
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  const share = barred / usable.length;
+  if (share < 0.1) return null;
+  const [w2, h2, x2, y2] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0].split(':').map(Number);
+  const b = barsOf({ w: w2, h: h2, x: x2, y: y2 });
   const parts = [];
-  if (top >= tol || bottom >= tol) parts.push(`top ${top} px, bottom ${bottom} px (letterbox)`);
-  if (left >= tol || right >= tol) parts.push(`left ${left} px, right ${right} px (pillarbox)`);
-  return parts.join('; ');
+  if (b.top >= tol || b.bottom >= tol) parts.push(`top ${b.top} px, bottom ${b.bottom} px (letterbox)`);
+  if (b.left >= tol || b.right >= tol) parts.push(`left ${b.left} px, right ${b.right} px (pillarbox)`);
+  const where = share >= 0.95 ? '' : `, in about ${Math.round(share * 100)}% of the video`;
+  return parts.join('; ') + where;
 }
 
 // Black at the very start or end of the file.

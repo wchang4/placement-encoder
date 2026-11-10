@@ -57,7 +57,7 @@ const OPT = {
   sampleRate: [['44100', '44.1 kHz'], ['48000', '48 kHz']],
   bitDepth: [['16', '16-bit'], ['24', '24-bit']],
   channels: [['1', 'Mono'], ['2', 'Stereo']],
-  loudMode: [['off', 'Off (leave the audio level unchanged)'], ['lufs', 'Integrated loudness (LUFS) + true peak'], ['rms', 'Average level (RMS dB) + peak']]
+  loudMode: [['off', 'Off (leave the audio level unchanged)'], ['lufs', 'Integrated loudness (LUFS) + true peak'], ['rms', 'Average level (RMS dB) + peak'], ['max', 'Limits only: no louder than average (RMS dB) + peak']]
 };
 const isH264 = (s) => s.vcodec === 'h264';
 // Read/write the two shortcut choices.
@@ -105,7 +105,7 @@ const FIELDS = [
   ] },
   { group: 'Volume (audio leveling)', expert: true, items: [
     { k: 'loudMode', label: 'Leveling method', type: 'select' },
-    { k: 'loudTarget', label: 'Target (LUFS, or average dB)', type: 'number', step: '0.1', signed: true, show: (s) => s.loudMode !== 'off' },
+    { k: 'loudTarget', label: 'Target or limit (LUFS, or average dB)', type: 'number', step: '0.1', signed: true, show: (s) => s.loudMode !== 'off' },
     { k: 'loudPeak', label: 'Peak limit (dBTP, or dB)', type: 'number', step: '0.1', signed: true, show: (s) => s.loudMode !== 'off' },
     { type: 'picks', label: 'Quick picks', show: (s) => s.loudMode === 'lufs',
       picks: [['Broadcast: -24 LKFS / -2 dBTP', -24, -2], ['Streaming: -14 LUFS / -1 dBTP', -14, -1], ['Streaming: -16 LUFS / -1 dBTP', -16, -1]] },
@@ -196,7 +196,7 @@ function setSetting(k, v) {
   if (k === 'pixFmt' && v === 'yuv420p' && state.settings.h264Profile === 'high422') state.settings.h264Profile = 'high';
   // picking a leveling method for the first time: start from the usual numbers
   if (k === 'loudMode' && v === 'lufs' && !(state.settings.loudTarget < 0)) { state.settings.loudTarget = -14; state.settings.loudPeak = -1; }
-  if (k === 'loudMode' && v === 'rms' && !(state.settings.loudTarget < 0)) { state.settings.loudTarget = -14; state.settings.loudPeak = -1; }
+  if (k === 'loudMode' && (v === 'rms' || v === 'max') && !(state.settings.loudTarget < 0)) { state.settings.loudTarget = -14; state.settings.loudPeak = -1; }
   refreshForm(); update();
 }
 
@@ -218,7 +218,9 @@ function presetSummary(p) {
   const s = p.settings;
   const kind = s.vcodec === 'prores' ? 'a ProRes MOV file (large)' : `an ${s.container.toUpperCase()} file (H.264)`;
   const size = s.width && s.height ? `${s.width} x ${s.height}` : 'the same picture size as your video';
-  const vol = p.loudness?.mode && p.loudness.mode !== 'off' ? ', with the volume set automatically to the placement\'s level' : '';
+  const lm = p.loudness?.mode;
+  const vol = lm === 'max' ? ', with the volume checked against the placement\'s limits (turned down only if too loud)'
+    : lm && lm !== 'off' ? ', with the volume set automatically to the placement\'s level' : '';
   return `You'll get ${kind}, ${size}, at your video's own frame rate${vol}.`;
 }
 
@@ -566,14 +568,16 @@ function renderPreflight() {
     const m = a.audio;
     add('Integrated loudness', f1(m.lufs) + ' LUFS', 'info', `Loudness range ${f1(m.lra)} LU.` + (s.loudMode === 'lufs' ? ` Gain needed to reach ${s.loudTarget} LUFS: ${gain(s.loudTarget, m.lufs)}.` : ''));
     add('True peak', f1(m.truePeak) + ' dBTP', m.truePeak > -1 ? 'warn' : 'info', m.truePeak > -1 ? 'Very close to full scale. Some placements reject peaks above -1 dBTP.' : '');
-    add('Average level (RMS)', f1(m.rms) + ' dB', 'info', s.loudMode === 'rms' ? `Gain needed to reach ${s.loudTarget} dB: ${gain(s.loudTarget, m.rms)}.` + (m.samplePeak - m.rms > s.loudPeak - s.loudTarget + 1 ? ` Warning: this audio has ${(m.samplePeak - m.rms).toFixed(1)} dB between average and peak; the target allows only ${(s.loudPeak - s.loudTarget).toFixed(1)} dB, so it cannot be reached without compression.` : '') : '');
+    if (s.loudMode === 'max') add('Average level (RMS)', f1(m.rms) + ' dB', m.rms > s.loudTarget + 0.05 ? 'warn' : 'info',
+      m.rms > s.loudTarget + 0.05 ? `Louder than the ${s.loudTarget} dB limit; it will be turned down ${(m.rms - s.loudTarget).toFixed(1)} dB.` : `Within the ${s.loudTarget} dB limit; the level will be left as it is.`);
+    else add('Average level (RMS)', f1(m.rms) + ' dB', 'info', s.loudMode === 'rms' ? `Gain needed to reach ${s.loudTarget} dB: ${gain(s.loudTarget, m.rms)}.` + (m.samplePeak - m.rms > s.loudPeak - s.loudTarget + 1 ? ` Warning: this audio has ${(m.samplePeak - m.rms).toFixed(1)} dB between average and peak; the target allows only ${(s.loudPeak - s.loudTarget).toFixed(1)} dB, so it cannot be reached without compression.` : '') : '');
     add('Sample peak', f1(m.samplePeak) + ' dB', 'info');
   }
   const v = a.video, d = v.dups;
   add('Duplicate frames', `${d.duplicates} of ${d.frames - 1} (${d.percent.toFixed(1)}%)`, d.percent <= st.dupPassPercent ? 'pass' : d.percent <= st.dupWarnPercent ? 'warn' : 'fail',
     d.duplicates ? `Longest repeat ${d.longestRun} frames (${d.longestRunSec.toFixed(2)} s). ` + 'Placements that flag repeated frames may reject this. "Add light grain" prevents exact repeats.' : '');
   const bars = describeBars(v.crop, src.video.width, src.video.height, st.barTolerancePx);
-  add('Black bars', bars || 'none detected', bars ? (spec.noLetterbox ? 'fail' : 'warn') : 'pass', bars && spec.noLetterbox ? 'This placement does not allow letterboxing or pillarboxing. This must be fixed in the edit.' : '');
+  add('Black bars', bars || 'none detected', bars ? (spec.noLetterbox ? 'fail' : spec.barsAllowed ? 'info' : 'warn') : 'pass', bars && spec.noLetterbox ? 'This placement does not allow letterboxing or pillarboxing. This must be fixed in the edit.' : '');
   const ends = describeBlackEnds(v.black, src.durationSec); const bp = [];
   if (ends.start) bp.push(`${ends.start.toFixed(2)} s at the start`);
   if (ends.end) bp.push(`${ends.end.toFixed(2)} s at the end`);
@@ -623,7 +627,7 @@ function checkItem([status, text, more]) {
 // The automatic check in plain words, judged against the chosen placement.
 function plainChecklist() {
   const a = state.analysis, src = state.src, v = src.video, spec = state.preset.spec, s = state.settings, st = state.config.strictness;
-  const name = state.preset.custom ? 'your settings' : state.preset.name;
+  const name = state.preset.custom ? 'your settings' : state.preset.name.split(':')[0].trim(); // "Cineplex" rather than "Cineplex: cinema pre-show"
   const out = []; const add = (status, text, more) => out.push([status, text, more]);
   const t = targetFormat(s, src);
 
@@ -646,6 +650,13 @@ function plainChecklist() {
   // Sound
   if (!src.audio) add(spec.audioRequired ? 'bad' : 'info', spec.audioRequired ? `No sound: ${name} requires audio.` : 'This video has no sound.');
   else if (a.audio?.silent) add(spec.audioRequired ? 'bad' : 'warn', 'The sound track is silent.', spec.audioRequired ? `${name} requires audible sound.` : '');
+  else if (s.loudMode === 'max' && a.audio) {
+    const loud = a.audio.rms > s.loudTarget + 0.05, peaky = a.audio.samplePeak > s.loudPeak + 0.05;
+    if (loud || peaky) add('ok', `Sound found. It is louder than ${name} allows, so it will be turned down to fit.`,
+      `Average ${a.audio.rms.toFixed(1)} dB (limit ${s.loudTarget}), peak ${a.audio.samplePeak.toFixed(1)} dB (limit ${s.loudPeak}).`);
+    else add('ok', `Sound is within ${name}'s volume limits, so it will be left as it is.`,
+      `Average ${a.audio.rms.toFixed(1)} dB (limit ${s.loudTarget}), peak ${a.audio.samplePeak.toFixed(1)} dB (limit ${s.loudPeak}).`);
+  }
   else if (s.loudMode !== 'off') add('ok', `Sound found. The volume will be set automatically to ${name}'s level.`);
   else add('ok', 'Sound found. The volume will be left as it is.');
 
@@ -659,7 +670,10 @@ function plainChecklist() {
 
   // Black bars and black frames
   const bars = describeBars(a.video.crop, v.width, v.height, st.barTolerancePx);
-  if (bars) add(spec.noLetterbox ? 'bad' : 'warn', `Black bars found (${bars}).`, spec.noLetterbox ? `${name} does not allow black bars. The picture must fill the frame; this needs fixing in the edit.` : 'Some placements do not allow black bars around the picture.');
+  if (bars) add(spec.noLetterbox ? 'bad' : spec.barsAllowed ? 'info' : 'warn', `Black bars found (${bars}).`,
+    spec.noLetterbox ? `${name} does not allow black bars. The picture must fill the frame; this needs fixing in the edit.`
+      : spec.barsAllowed ? `${name} accepts this. The picture just will not fill the whole screen.`
+      : 'Some placements do not allow black bars around the picture.');
   else add('ok', 'No black bars around the picture.');
   const ends = describeBlackEnds(a.video.black, src.durationSec);
   if (ends.start || ends.end) add('warn', 'Black frames at the ' + [ends.start ? `start (${ends.start.toFixed(1)} s)` : '', ends.end ? `end (${ends.end.toFixed(1)} s)` : ''].filter(Boolean).join(' and ') + '.', 'Usually fine, but some placements want the picture to start on the first frame.');

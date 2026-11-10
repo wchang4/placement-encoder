@@ -5,7 +5,11 @@
 //           standard approach for broadcast and streaming targets.
 //   "rms":  measure the average (RMS) level, apply the gain that reaches the
 //           target, then a peak limiter. Used for specs written as "average
-//           level and peak" (for example Cineplex, Spotify).
+//           level and peak" as a target to reach (for example Spotify).
+//   "max":  limits only, for specs written as "no higher than" (for example
+//           Cineplex: average no higher than -12 dB, peaks no higher than -8 dB).
+//           Audio that is already within the limits is left exactly as it is.
+//           Audio that is too loud is turned down; peaks over the limit are limited.
 // The finished file is measured again afterwards and the report shows the real result.
 
 import { measureAudio, measureLoudnorm } from './analyze.js';
@@ -33,6 +37,27 @@ export async function planLeveling(engine, path, s, onTime) {
       ? ` Warning: the target leaves only ${room.toFixed(1)} dB between average and peak, but this audio has ${crest.toFixed(1)} dB. The limiter cannot close that gap, so the average will fall short unless the audio is compressed (this tool does not compress).`
       : '';
     return { filter, info: `Measured average ${m.rms.toFixed(1)} dB (peak ${m.samplePeak.toFixed(1)} dB). Gain ${gain >= 0 ? '+' : ''}${gain.toFixed(1)} dB toward ${s.loudTarget} dB, with a peak limiter at ${s.loudPeak} dB. Limiting can leave the average slightly below target; the report shows the real result.${hard}` };
+  }
+  if (s.loudMode === 'max') {
+    const m = await measureAudio(engine, path, onTime);
+    if (m.silent || m.rms == null || !isFinite(m.rms)) return { filter: null, info: 'The audio is silent or could not be measured, so no leveling was applied.' };
+    const cut = Math.min(0, s.loudTarget - m.rms); // never turn up, only down
+    const margin = s.acodec === 'aac' ? 0.3 : 0;
+    const limitDb = s.loudPeak - margin;
+    const needLimit = m.samplePeak + cut > limitDb;
+    const parts = [];
+    if (cut < -0.05) parts.push(`volume=${cut.toFixed(2)}dB`);
+    if (needLimit) {
+      const lin = Math.min(1, Math.max(0.0625, Math.pow(10, limitDb / 20)));
+      parts.push(`alimiter=limit=${lin.toFixed(4)}:attack=5:release=50:level=0`);
+    }
+    const avg = cut < -0.05
+      ? `Average ${m.rms.toFixed(1)} dB was louder than the ${s.loudTarget} dB limit, so it was turned down ${(-cut).toFixed(1)} dB.`
+      : `Average ${m.rms.toFixed(1)} dB is within the ${s.loudTarget} dB limit, so the volume was not changed.`;
+    const pk = needLimit
+      ? ` Peaks (${m.samplePeak.toFixed(1)} dB) were held to ${s.loudPeak} dB.`
+      : ` Peaks (${m.samplePeak.toFixed(1)} dB) are within the ${s.loudPeak} dB limit.`;
+    return { filter: parts.length ? parts.join(',') : null, info: avg + pk };
   }
   return { filter: null, info: '' };
 }

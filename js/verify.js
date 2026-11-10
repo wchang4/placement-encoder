@@ -191,7 +191,15 @@ function extraRows(summary, settings, preset, extra, st, add, source) {
   const fmt = (x) => (x == null ? 'n/a' : !isFinite(x) ? '-inf' : x.toFixed(1));
 
   // Loudness against the target
-  if (a && settings.loudMode && settings.loudMode !== 'off' && !a.silent) {
+  if (a && settings.loudMode === 'max' && !a.silent) {
+    const over = a.rms - settings.loudTarget;
+    add('Average level (RMS)', `${settings.loudTarget} dB or lower`, `${fmt(a.rms)} dB`,
+      over <= 0.05 ? 'pass' : over <= st.loudnessWarnDb ? 'warn' : 'fail',
+      over <= 0.05 ? '' : 'Louder than the placement allows.');
+    const pkOver = a.samplePeak - settings.loudPeak;
+    add('Peak level', `${settings.loudPeak} dB or lower`, `${fmt(a.samplePeak)} dB`,
+      pkOver <= 0.05 ? 'pass' : pkOver <= st.peakWarnDb ? 'warn' : 'fail');
+  } else if (a && settings.loudMode && settings.loudMode !== 'off' && !a.silent) {
     const measured = settings.loudMode === 'lufs' ? a.lufs : a.rms;
     const unit = settings.loudMode === 'lufs' ? 'LUFS' : 'dB';
     const diff = Math.abs(measured - settings.loudTarget);
@@ -234,8 +242,9 @@ function extraRows(summary, settings, preset, extra, st, add, source) {
     // Black bars
     if (vid.crop) {
       const bars = describeBars(vid.crop, summary.video.width, summary.video.height, st.barTolerancePx);
-      add('Black bars', 'none', bars || 'none detected', bars ? (spec.noLetterbox ? 'fail' : 'warn') : 'pass',
-        bars && spec.noLetterbox ? 'This placement does not allow letterboxing or pillarboxing. The picture must fill the frame; this needs fixing in the edit.' : '');
+      add('Black bars', spec.barsAllowed ? 'allowed' : 'none', bars || 'none detected', bars ? (spec.noLetterbox ? 'fail' : spec.barsAllowed ? 'info' : 'warn') : 'pass',
+        bars && spec.noLetterbox ? 'This placement does not allow letterboxing or pillarboxing. The picture must fill the frame; this needs fixing in the edit.'
+          : bars && spec.barsAllowed ? 'This placement accepts black bars. The picture will not fill the whole screen.' : '');
     }
     // Black frames at start / end
     const ends = describeBlackEnds(vid.black, summary.durationSec);

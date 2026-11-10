@@ -42,7 +42,7 @@
         "url": ""
       },
       "notes": [
-        "The source PDF lists the average level as both -12 dB and -10 dB. Confirm with Cineplex. Peaks should not exceed -8 dB.",
+        "Audio: the written rule is used (average no higher than -12 dB, peaks no higher than -8 dB). The '-10db' in the spec table is not treated as a target.",
         "The PDF says 8-bit, but ProRes 422 HQ is normally 10-bit. Confirm with Cineplex. This preset uses standard 10-bit ProRes 422 HQ.",
         "File names: max 12 characters, no special characters, end with a language letter (E = English, F = French), for example NAMEE.MOV. Type the name yourself.",
         "Text-safe area is 1724 x 972. Video files only, no stills."
@@ -85,7 +85,8 @@
         "maxSizeMB": null,
         "maxDurationSec": null,
         "h264ProfilesAllowed": null,
-        "noLetterbox": false
+        "noLetterbox": false,
+        "barsAllowed": true
       },
       "naming": {
         "maxLength": 12,
@@ -93,10 +94,10 @@
         "note": "Max 12 characters before the extension, letters and numbers only, end with a language letter."
       },
       "loudness": {
-        "mode": "rms",
+        "mode": "max",
         "targetDb": -12,
         "peakDb": -8,
-        "note": "Cineplex 'average' level is treated here as average (RMS) level. The source PDF also lists -10 dB; confirm with Cineplex."
+        "note": "Cineplex sets limits, not a target: average no higher than -12 dB, peaks no higher than -8 dB. Quieter audio is left as it is; louder audio is turned down."
       },
       "safeZones": [
         {

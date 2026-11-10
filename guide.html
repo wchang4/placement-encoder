@@ -52,7 +52,7 @@
   <ul>
     <li><b>Black bars (letterbox)</b> and slates or countdowns: fix in the edit.</li>
     <li><b>Wrong shape</b> (for example a 16:9 file for a 9:16 placement): the tool never crops or reframes. Ask for the right master.</li>
-    <li><b>Audio too dynamic for the target</b> (for example Cineplex's average -12 / peak -8 dB): the tool limits peaks but does not compress, so the average can fall short. The report shows the real number.</li>
+    <li><b>Audio too quiet for a loudness target</b>: the tool limits peaks but does not compress, so a very dynamic mix can fall short of a target. The report shows the real number. (Cineplex sets limits rather than a target, so quieter audio is simply left as it is.)</li>
     <li><b>A video converted from another frame rate</b> (the check says "a repeated frame every few frames"): grain hides the exact repeats, but Disney+ and others may still reject the stutter. Ask the editor for an export at the original frame rate.</li>
   </ul></div>
 

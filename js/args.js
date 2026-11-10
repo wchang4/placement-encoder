@@ -32,6 +32,9 @@ export function buildArgs(settings, src, inPath, outName, opts = {}) {
   // every frame) and uniform. Applied after any scaling or frame rate change so every
   // output frame gets different noise.
   if (s.noiseOn) vf.push(`noise=alls=${Math.round(s.noiseStrength)}:allf=t+u`);
+  // Colour labels must also be set on the frames themselves: the -colorspace options
+  // alone left ProRes files with "unknown" primaries/transfer when the source was untagged.
+  if (s.tagBt709) vf.push('setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709');
   if (vf.length) args.push('-vf', vf.join(','));
 
   // ---- video codec ----
