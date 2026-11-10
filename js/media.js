@@ -67,7 +67,11 @@ export function summarize(probe) {
   const as = streams.filter(s => s.codec_type === 'audio');
   const ds = streams.filter(s => s.codec_type !== 'video' && s.codec_type !== 'audio');
   const v = vs[0], a = as[0];
-  const dur = +probe.format?.duration || (v ? +v.duration : 0) || 0;
+  // Length = the picture track (what a ":30" spot means). The overall file length,
+  // and the AAC sound track, include a few hundredths of a second of encoder padding
+  // in the browser's ffprobe (30.11 s for a 30.03 s spot), which made exact :30 spots
+  // look too long. Sound-only files fall back to the sound track, then the file.
+  const dur = (v && +v.duration) || (a && +a.duration) || +probe.format?.duration || 0;
   const out = {
     container: containerOf(probe),
     formatName: probe.format?.format_name,

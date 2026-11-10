@@ -35,6 +35,7 @@
       "id": "cineplex-preshow",
       "name": "Cineplex: cinema pre-show",
       "group": "Main placements",
+      "file": "cinema",
       "status": "unverified",
       "verifiedDate": "",
       "source": {
@@ -116,6 +117,7 @@
       "id": "rogers-ctv",
       "name": "Rogers: connected TV (PLACEHOLDER)",
       "group": "Main placements",
+      "file": "ctv",
       "status": "unverified",
       "verifiedDate": "",
       "source": {
@@ -185,6 +187,7 @@
       "id": "bell-crave-ctv",
       "name": "Crave / Bell Media: connected TV",
       "group": "Main placements",
+      "file": "ctv",
       "status": "unverified",
       "verifiedDate": "",
       "source": {
@@ -258,6 +261,7 @@
       "id": "amazon-prime",
       "name": "Amazon Prime Video",
       "group": "Main placements",
+      "file": "streaming",
       "status": "unverified",
       "verifiedDate": "",
       "source": {
@@ -322,6 +326,7 @@
       "id": "disney-h264",
       "name": "Disney+",
       "group": "Main placements",
+      "file": "streaming",
       "status": "unverified",
       "verifiedDate": "",
       "source": {
@@ -330,17 +335,17 @@
       },
       "notes": [
         "Disney's own rejection list says 'duplicate frames' means the file was converted to a different frame rate. The fix is a native-frame-rate export, not grain. Keep the frame rate native.",
-        "Profile: the US notes say 'Main profile, 4:2:2', which H.264 cannot do together. Disney's 2026 Australia/NZ spec says High profile. This preset uses High 4:2:2 until the Canadian spec is confirmed.",
         "Constant frame rate, native, no pulldown, progressive. No letterboxing or pillarboxing on 16:9 content. No slates or countdowns. One video track and one audio track.",
         "Keep important content out of the top-right 220 x 135 px (player ad overlay).",
-        "Max file size: 250 MB if Hulu-served, 1.9 GB for partner or programmatic. This preset checks 1900 MB. Change it if needed."
+        "Max file size: 250 MB if Hulu-served, 1.9 GB for partner or programmatic. This preset checks 1900 MB. Change it if needed.",
+        "Uses H.264 High profile 4:2:0, as in the Disney ANZ 2026 spec. An older note mentioned \"Main profile 4:2:2\"; confirm with Disney if a file is declined for this."
       ],
       "settings": {
         "container": "mp4",
         "vcodec": "h264",
-        "h264Profile": "high422",
+        "h264Profile": "high",
         "proresProfile": "hq",
-        "pixFmt": "yuv422p",
+        "pixFmt": "yuv420p",
         "width": 1920,
         "height": 1080,
         "fps": "native",
@@ -488,6 +493,7 @@
       "id": "cineplex-lobby",
       "name": "Cineplex: lobby screens (no audio)",
       "group": "More placements",
+      "file": "cinema",
       "status": "unverified",
       "verifiedDate": "",
       "source": {
@@ -551,6 +557,7 @@
       "id": "landmark-preshow",
       "name": "Landmark Cinemas (PLACEHOLDER)",
       "group": "More placements",
+      "file": "cinema",
       "status": "unverified",
       "verifiedDate": "",
       "source": {
@@ -677,6 +684,7 @@
       "id": "youtube",
       "name": "YouTube",
       "group": "More placements",
+      "file": "streaming",
       "status": "unverified",
       "verifiedDate": "",
       "source": {
@@ -686,7 +694,9 @@
       "notes": [
         "MP4, no edit lists, moov atom at the front, H.264 High, progressive, 2 consecutive B-frames, closed GOP at half the frame rate, 4:2:0, BT.709, VBR, same frame rate as the source.",
         "1080p about 8 Mbps (12 Mbps for 48 to 60 fps). Audio AAC-LC stereo 48 kHz at 384 kbps.",
-        "This tool does not deinterlace. Interlaced sources show a warning."
+        "This tool does not deinterlace. Interlaced sources show a warning.",
+        "YouTube recommends about 8 to 16 Mbps for 1080p but accepts higher, so no upper limit is checked.",
+        "YouTube recommends 384 kbps stereo audio but accepts less, so audio bitrate is not checked. (The encoder delivers less than requested on quiet audio.)"
       ],
       "settings": {
         "container": "mp4",
@@ -714,12 +724,12 @@
       },
       "spec": {
         "minKbps": 6000,
-        "maxKbps": 16000,
+        "maxKbps": null,
         "allowedFps": null,
         "aspect": null,
         "minShortEdge": null,
         "audioRequired": true,
-        "minAudioKbps": 320,
+        "minAudioKbps": null,
         "maxSizeMB": null,
         "maxDurationSec": null,
         "h264ProfilesAllowed": [
@@ -741,6 +751,7 @@
       "id": "youtube-shorts",
       "name": "YouTube Shorts (vertical, unverified)",
       "group": "More placements",
+      "file": "vertical",
       "status": "unverified",
       "verifiedDate": "",
       "source": {
@@ -813,6 +824,7 @@
       "id": "meta-vertical",
       "name": "Meta Reels / Stories (vertical, unverified)",
       "group": "More placements",
+      "file": "vertical",
       "status": "unverified",
       "verifiedDate": "",
       "source": {
@@ -874,6 +886,7 @@
       "id": "universal",
       "name": "General purpose MP4 (any other placement)",
       "group": "More placements",
+      "file": "streaming",
       "status": "unverified",
       "verifiedDate": "",
       "source": {
@@ -998,5 +1011,34 @@
   "grain": {
     "_note": "Light grain (temporal noise) that stops exact duplicate frames. OFF by default; the page offers it when the frame rate is changed or the check finds repeated frames. Tested 2026-11-09: strength 1 changes nothing, 3 and 5 are unreliable, 4 removed every exact repeat at 6 to 20 Mbps H.264 and ProRes. Use even numbers. A preset can override with \"noise\": {\"strength\": 6}.",
     "strength": 4
+  },
+  "files": {
+    "_note": "Placements with the same \"file\" value get ONE shared file, made with the \"settingsFrom\" preset's settings (plus any \"settings\" here) and checked against the strictest rule of each placement. Remove a placement's \"file\" line to always give it its own file.",
+    "cinema": {
+      "label": "Cinema master (ProRes MOV)",
+      "tag": "CINEMA",
+      "settingsFrom": "cineplex-preshow"
+    },
+    "streaming": {
+      "label": "Streaming and online (MP4, high quality)",
+      "tag": "STREAM",
+      "settingsFrom": "amazon-prime",
+      "settings": {
+        "audioKbps": 320
+      },
+      "notes": [
+        "Audio is 320 kbps so it also meets YouTube's recommendation."
+      ]
+    },
+    "ctv": {
+      "label": "Connected TV, small file (MP4, under 25 MB)",
+      "tag": "CTV",
+      "settingsFrom": "bell-crave-ctv"
+    },
+    "vertical": {
+      "label": "Vertical 9:16 (MP4)",
+      "tag": "VERT",
+      "settingsFrom": "youtube-shorts"
+    }
   }
 }

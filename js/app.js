@@ -9,6 +9,7 @@ import { buildArgs, targetFormat } from './args.js';
 import { verify, overall, checkName } from './verify.js';
 import { measureAudio, scanVideo, scanDuplicates, grabFrames, describeBars, describeBlackEnds } from './analyze.js';
 import { planLeveling } from './level.js';
+import { buildGroups, shortName } from './groups.js';
 import { summarize, pixDepth, fmtFps, fmtBytes, fmtKbps, fmtTime, aspectLabel, aspectValue, estimateOutputBytes } from './media.js';
 
 const $ = (id) => document.getElementById(id);
@@ -17,7 +18,12 @@ const engine = new Engine();
 // ---------- state ----------
 const state = {
   config: null,        // whole presets.json
-  preset: null,        // chosen preset object
+  ticked: [],          // ids of the placements ticked in step 2
+  groups: [],          // the files those placements need (see groups.js), each with its own settings and name
+  active: 0,           // which file is shown in the editing area
+  nameOverride: null,  // file name used while checking a file that is not the active one
+  blobUrls: [],        // download links made this session (released when results are cleared)
+  preset: null,        // preset of the active file (a placement, or a combined preset for a shared file)
   settings: null,      // current form values (starts as a copy of defaults)
   defaults: null,      // the preset's values in the same shape as settings (for highlighting changes)
   analysis: null,      // results of the preflight analysis of the current source
@@ -25,7 +31,6 @@ const state = {
   src: null,           // summarize() of the source
   running: false,
   showZones: true,     // draw safe-zone guides on the preview frames
-  lastBlobUrl: null, lastOutName: null
 };
 
 // ---------- tiny DOM helper ----------
@@ -224,21 +229,109 @@ function presetSummary(p) {
   return `You'll get ${kind}, ${size}, at your video's own frame rate${vol}.`;
 }
 
-function choosePreset(id) {
-  state.preset = state.config.presets.find(p => p.id === id);
-  $('preset').value = id; // keep the dropdown in step when a preset is chosen by code or "Reset"
-  state.defaults = defaultsFor(state.preset);
-  state.settings = { ...state.defaults };
-  state.customize = false;
-  const p = state.preset;
+// Ticks changed: work out which files are needed. A file keeps its name and any
+// changed settings while the same placements are still in it.
+function onTick(p, on) {
+  const isCustom = (id) => state.config.presets.find(x => x.id === id)?.custom;
+  if (on && p.custom) state.ticked = [p.id];                                   // Custom stands alone
+  else if (on) state.ticked = state.ticked.filter(id => !isCustom(id)).concat(p.id);
+  else state.ticked = state.ticked.filter(id => id !== p.id);
+  for (const cb of document.querySelectorAll('.ticks input')) cb.checked = state.ticked.includes(cb.value);
+  onTicks();
+}
+
+function onTicks() {
+  saveActiveName();
+  const old = state.groups;
+  const sameMembers = (a, b) => a.members.map(m => m.id).join() === b.members.map(m => m.id).join();
+  state.groups = buildGroups(state.config, state.ticked).map(g => {
+    const prev = old.find(o => o.key === g.key && sameMembers(o, g));
+    if (prev) return { ...g, defaults: prev.defaults, settings: prev.settings, customize: prev.customize, name: prev.name };
+    const defaults = defaultsFor(g.preset);
+    const settings = { ...defaults };
+    settings.noiseOn = raisesFps(settings);
+    return { ...g, defaults, settings, customize: false, name: old.find(o => o.key === g.key)?.name ?? '' };
+  });
+  fillDefaultNames(false);
+  const n = state.groups.length;
+  $('files-area').classList.toggle('hidden', !n);
+  $('active-file').classList.toggle('hidden', !n);
+  $('none-ticked').classList.toggle('hidden', !!n);
+  $('files-head').textContent = n === 1 ? 'You need 1 file' : `You need ${n} files`;
+  if (!n) { useFallback(); return; }
+  setActive(Math.min(state.active, n - 1), false);
+}
+
+// Nothing ticked: the automatic check still runs, with general checks only.
+function useFallback() {
+  const p = state.config.presets.find(x => x.custom);
+  state.preset = p; state.defaults = defaultsFor(p); state.settings = { ...state.defaults }; state.customize = false;
+  update();
+  if (state.analysis) renderPreflight();
+}
+
+// File names start from the video's name. With several files, each gets a short tag
+// (for example _STREAM) so they do not overwrite each other.
+function fillDefaultNames(force) {
+  const n = state.groups.length;
+  for (const g of state.groups) {
+    if (!force && g.name) continue;
+    g.name = state.baseName ? (n > 1 && g.tag ? `${state.baseName}_${g.tag}` : state.baseName) : '';
+  }
+}
+
+function saveActiveName() { const g = state.groups[state.active]; if (g && !state.nameOverride) g.name = $('outname').value; }
+
+// Show one file in the editing area below the cards.
+function setActive(i, save = true) {
+  const g = state.groups[i]; if (!g) return;
+  if (save) saveActiveName();
+  state.active = i;
+  state.preset = g.preset; state.defaults = g.defaults; state.settings = g.settings; state.customize = g.customize;
+  const p = state.preset, n = state.groups.length;
+  $('active-title').textContent = (n > 1 ? `File ${i + 1} of ${n}: ` : '') + (p.custom ? 'Custom settings' : g.label);
   $('preset-status').replaceChildren(p.custom ? '' : p.status === 'verified'
     ? el('span', { class: 'tag ok', text: 'VERIFIED ' + (p.verifiedDate || '') })
     : el('span', { class: 'tag warn', text: 'SPEC NOT YET CONFIRMED', title: 'These values come from research and have not been confirmed with the placement.' }));
-  $('preset-summary').textContent = p.custom ? 'Choose the settings below. Start from the basics; the expert settings are rarely needed.' : presetSummary(p);
-  $('preset-notes').replaceChildren(...[...(p.notes || []), ...(p.loudness?.note ? ['Volume: ' + p.loudness.note] : [])].map(n => el('li', { text: n })));
+  $('preset-summary').textContent = p.custom ? 'Choose the settings below. Start from the basics; the expert settings are rarely needed.'
+    : (g.members.length > 1 ? `One file for ${p.name}. ` : '') + presetSummary(p);
+  $('preset-notes').replaceChildren(...[...(p.notes || []), ...(p.loudness?.note ? ['Volume: ' + p.loudness.note] : [])].map(t => el('li', { text: t })));
   $('preset-source').textContent = 'Source: ' + (p.source?.label || 'none') + (p.source?.url ? ' · ' + p.source.url : '') + (p.verifiedDate ? ' · last verified ' + p.verifiedDate : '');
+  $('outname').value = g.name;
   buildSettingsForm(); showAdvanced(); update();
-  if (state.analysis) renderPreflight(); // redraw the checklist and safe-zone guides for the new placement
+  if (state.analysis) renderPreflight(); // redraw the checklist and safe-zone guides for this file
+}
+
+// Run fn as if file g were the active one (used to check every file, not just the shown one).
+function withGroup(g, fn) {
+  const keep = { preset: state.preset, settings: state.settings, defaults: state.defaults, nameOverride: state.nameOverride };
+  state.preset = g.preset; state.settings = g.settings; state.defaults = g.defaults; state.nameOverride = g.name;
+  try { return fn(); } finally { Object.assign(state, keep); }
+}
+
+// Card for each file: what it is, which placements it covers, and how it looks so far.
+function renderCards(evals) {
+  const cards = state.groups.map((g, i) => {
+    const e = evals[i];
+    const bad = e.w.filter(x => x.level === 'bad').length + e.checks.filter(c => c[0] === 'bad').length;
+    const warn = e.w.filter(x => x.level === 'warn').length + e.checks.filter(c => c[0] === 'warn').length;
+    let st, cls;
+    if (!state.src) { st = 'Drop your video to check it'; cls = ''; }
+    else if (bad) { st = `✕ ${bad} problem${bad > 1 ? 's' : ''}`; cls = 'bad'; }
+    else if (warn) { st = `! ${warn} thing${warn > 1 ? 's' : ''} to look at`; cls = 'warn'; }
+    else if (!state.analysis) { st = 'Checking your video...'; cls = ''; }
+    else { st = '✓ Looks ready'; cls = 'ok'; }
+    const card = el('div', { class: 'card' + (i === state.active ? ' active' : ''), role: 'button', tabindex: '0', title: 'Show this file' },
+      el('div', { class: 'num', text: `File ${i + 1}` }),
+      el('b', { text: g.preset.custom ? 'Custom settings' : g.label }),
+      el('div', { class: 'for', text: 'For: ' + g.members.map(m => m.name).join(', ') }),
+      el('div', { class: 'st ' + cls, text: st }));
+    const go = () => { if (!state.running && i !== state.active) setActive(i); };
+    card.addEventListener('click', go);
+    card.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); go(); } });
+    return card;
+  });
+  $('file-cards').replaceChildren(...cards);
 }
 
 // The technical settings are hidden unless Custom is chosen or the user asks for them.
@@ -251,7 +344,7 @@ function showAdvanced() {
 
 // ---------- warnings and readiness ----------
 function currentFileName() {
-  return ($('outname').value.trim()) + '.' + state.settings.container;
+  return ((state.nameOverride ?? $('outname').value).trim()) + '.' + state.settings.container;
 }
 
 function computeWarnings() {
@@ -261,7 +354,7 @@ function computeWarnings() {
   // choices that cannot work together
   if (s.vcodec === 'prores' && s.container === 'mp4') add('bad', 'ProRes cannot be stored in an MP4. Choose MOV.', true);
   if (s.acodec === 'pcm' && s.container === 'mp4') add('bad', 'Uncompressed PCM audio is not supported in MP4 here. Choose MOV or AAC audio.', true);
-  const nm = $('outname').value.trim();
+  const nm = (state.nameOverride ?? $('outname').value).trim();
   if (!nm) { if (state.src) add('bad', 'Type a file name.', true); }
   else if (/[\\/:*?"<>|]/.test(nm)) add('bad', 'The file name contains characters that are not allowed: \\ / : * ? " < > |', true);
   const rule = checkName(currentFileName(), state.preset.naming);
@@ -296,7 +389,7 @@ function computeWarnings() {
   if (s.tagBt709 && v.colorSpace && v.colorSpace !== 'bt709') add('warn', `The source colour space is "${v.colorSpace}". Tagging the output BT.709 only changes the label, it does not convert the colours.`);
   if (v.sar && v.sar !== '1:1' && v.sar !== '0:1') add('warn', `The source has non-square pixels (${v.sar}).`);
 
-  if (spec.maxDurationSec && src.durationSec > spec.maxDurationSec) add('warn', `The source is ${src.durationSec.toFixed(1)} s long; this placement allows ${spec.maxDurationSec} s.`);
+  if (spec.maxDurationSec && src.durationSec > spec.maxDurationSec + state.config.strictness.durationToleranceSec) add('warn', `The source is ${src.durationSec.toFixed(1)} s long; ${spec.maxDurationBy || 'this placement'} allows ${spec.maxDurationSec} s.`);
   if (s.vcodec === 'h264' && ((spec.minKbps != null && s.bitrateKbps < spec.minKbps) || (spec.maxKbps != null && s.bitrateKbps > spec.maxKbps)))
     add('warn', `The video bitrate (${s.bitrateKbps} kbps) is outside this placement's range (${spec.minKbps ?? 0} to ${spec.maxKbps ?? 'no limit'} kbps).`);
 
@@ -315,11 +408,31 @@ function computeWarnings() {
 }
 
 function update() {
-  const w = computeWarnings();
+  const n = state.groups.length;
+  if (!n) {
+    $('warnings').replaceChildren();
+    $('btn-encode').disabled = true; $('btn-encode').textContent = 'Make the file';
+    $('btn-check').disabled = true;
+    $('est').textContent = state.src ? 'Tick a placement in step 2 first.' : '';
+    $('file-cards').replaceChildren();
+    return;
+  }
+  // Check the other files first, then the shown one (so its size estimate and name rule are displayed).
+  const evaluate = () => ({ w: computeWarnings(), checks: state.analysis ? plainChecklist() : [] });
+  const evals = state.groups.map((g, i) => (i === state.active ? null : withGroup(g, evaluate)));
+  evals[state.active] = evaluate();
+  const w = evals[state.active].w;
+  if (n > 1) {
+    const names = state.groups.map((g, i) => (i === state.active ? currentFileName() : withGroup(g, currentFileName)).toLowerCase());
+    const mine = names[state.active];
+    if (names.filter(x => x === mine).length > 1) w.push({ level: 'bad', text: 'Another file has the same name. Give each file its own name so one does not replace the other.', block: true });
+  }
   $('warnings').replaceChildren(...w.map(x => el('div', { class: 'msg ' + x.level, text: x.text })));
-  const blocked = w.some(x => x.block);
+  const blocked = evals.some(e => e.w.some(x => x.block));
   $('btn-encode').disabled = !state.src || blocked || state.running;
+  $('btn-encode').textContent = n > 1 ? `Make the ${n} files` : 'Make the file';
   $('btn-check').disabled = !state.src || state.running;
+  renderCards(evals);
   $('outext').textContent = '.' + state.settings.container;
   if (!state.src) $('est').textContent = '';
   updateGrain();
@@ -328,9 +441,9 @@ function update() {
 // "Add light grain" is shown only when it can help: the frame rate is being
 // changed, or the automatic check found repeated frames. Off unless switched on.
 // True when the chosen frame rate is higher than the source's, which repeats frames.
-function raisesFps() {
+function raisesFps(s = state.settings) {
   if (!state.src) return false;
-  const t = targetFormat(state.settings, state.src);
+  const t = targetFormat(s, state.src);
   return t.convertsFps && t.fps > state.src.video.fps;
 }
 
@@ -387,9 +500,11 @@ async function loadFile(file) {
   hideProgress();
   $('source-status').textContent = file.name + ' (' + fmtBytes(file.size) + ')';
   renderSourceDetails();
-  // default output name: the source name, cleaned up
-  $('outname').value = file.name.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80);
-  state.settings.noiseOn = raisesFps();
+  // default output names: the source name, cleaned up (plus a tag per file when there are several)
+  state.baseName = file.name.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80);
+  fillDefaultNames(true);
+  for (const g of state.groups) g.settings.noiseOn = raisesFps(g.settings);
+  if (state.groups.length) $('outname').value = state.groups[state.active].name;
   update();
   onPreflight(); // the automatic check runs straight away
 }
@@ -442,77 +557,103 @@ async function ensureEngine(stepNo, total, label) {
 const MIME = { mp4: 'video/mp4', mov: 'video/quicktime' };
 
 async function onEncode() {
-  if (state.running) return;
-  const s = state.settings, outFile = currentFileName(), memName = 'out.' + s.container;
+  if (state.running || !state.groups.length) return;
+  saveActiveName();
+  const n = state.groups.length;
   clearResult(); showError('');
 
   // Ask where to save BEFORE the long encode (needs a click; Chrome/Edge only).
-  let handle = null;
-  if (window.showSaveFilePicker && !window.__testSink) {
+  // One file: a "Save as" box. Several files: choose a folder once.
+  const target = { handle: null, dir: null };
+  if (!window.__testSink && n === 1 && window.showSaveFilePicker) {
+    const s = state.settings;
     try {
-      handle = await window.showSaveFilePicker({ suggestedName: outFile, types: [{ description: 'Video', accept: { [MIME[s.container]]: ['.' + s.container] } }] });
+      target.handle = await window.showSaveFilePicker({ suggestedName: currentFileName(), types: [{ description: 'Video', accept: { [MIME[s.container]]: ['.' + s.container] } }] });
     } catch (e) {
       if (e.name === 'AbortError') { showError('No save location chosen, so nothing was encoded.'); return; }
-      handle = null; // fall back to a normal browser download
+    }
+  } else if (!window.__testSink && n > 1 && window.showDirectoryPicker) {
+    try {
+      target.dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+      const names = state.groups.map(g => withGroup(g, currentFileName));
+      const existing = [];
+      for (const nm of names) { try { await target.dir.getFileHandle(nm); existing.push(nm); } catch (e) { /* not there yet */ } }
+      if (existing.length && !window.confirm('These files are already in that folder and would be replaced:\n\n' + existing.join('\n') + '\n\nReplace them?')) {
+        showError('Nothing was made. Choose another folder or change the file names.'); return;
+      }
+    } catch (e) {
+      if (e.name === 'AbortError') { showError('No folder chosen, so nothing was made.'); return; }
+      target.dir = null; // fall back to normal browser downloads
     }
   }
 
   state.running = true; update();
   $('btn-cancel').classList.remove('hidden'); $('btn-encode').classList.add('hidden');
+  try {
+    for (let i = 0; i < n && !state.cancelled; i++) {
+      setActive(i); // show the settings of the file being made
+      await encodeOne(i, n, target);
+    }
+  } catch (e) {
+    hideProgress();
+    if (!state.cancelled) showError((n > 1 ? `File ${state.active + 1} of ${n} could not be made. ` : '') + friendlyError(e));
+  } finally {
+    state.running = false; state.cancelled = false;
+    $('btn-cancel').classList.add('hidden'); $('btn-encode').classList.remove('hidden'); update();
+  }
+}
+
+async function encodeOne(i, n, target) {
+  const s = state.settings, outFile = currentFileName(), memName = 'out.' + s.container;
+  const pre = n > 1 ? `File ${i + 1} of ${n}, ` : '';
   // The steps shown to the user depend on what was asked for.
   const leveling = s.loudMode !== 'off' && !!state.src.audio;
   const steps = ['Loading the encoder'];
   if (leveling) steps.push('Measuring audio levels');
   steps.push('Encoding video', 'Checking the result', 'Saving the file');
-  const label = (name) => `Step ${steps.indexOf(name) + 1} of ${steps.length}: ${name}`;
+  const label = (name) => `${pre}Step ${steps.indexOf(name) + 1} of ${steps.length}: ${name}`;
   const dur = state.src.durationSec;
-  try {
-    await ensureEngine(1, steps.length, 'Loading the encoder');
-    const path = await engine.mountForEncode(state.file); // (re)mount: a cancel drops the old mount
-    startClock();
+  await ensureEngine(1, steps.length, 'Loading the encoder');
+  const path = await engine.mountForEncode(state.file); // (re)mount: a cancel drops the old mount
+  startClock();
 
-    // Audio leveling: measure first, then build the filter.
-    let audioFilter = null, levelInfo = '';
-    if (leveling) {
-      const timer = timedProgress(label('Measuring audio levels'), dur);
-      ({ filter: audioFilter, info: levelInfo } = await planLeveling(engine, path, s, timer));
-    }
-
-    const { args, notes } = buildArgs(s, state.src, path, memName, { audioFilter });
-    if (levelInfo) notes.push(levelInfo);
-    if (s.noiseOn) notes.push(`Light grain was added (strength ${s.noiseStrength}).`);
-    await engine.encode(args, timedProgress(label('Encoding video'), dur));
-
-    // Measure the finished file while it is still inside the encoder.
-    const tf = targetFormat(s, state.src);
-    const extra = {};
-    const stepName = label('Checking the result');
-    if (leveling) { showProgress(stepName + ' (audio levels)', null); extra.audio = await measureAudio(engine, memName); }
-    if (s.dupCheck) extra.video = await scanVideo(engine, memName, tf.fps, state.config.strictness.dupDiffThreshold, s.vcodec === 'prores' ? (s.proresProfile === '4444' ? 12 : 10) : 8, timedProgress(stepName + ' (frames)', dur));
-
-    // Pull the finished file out of the encoder, wrap it in a Blob (the browser
-    // can keep big Blobs on disk), and let the probe instance check it.
-    showProgress(stepName, null); $('eta').textContent = '';
-    let data = await engine.takeOutput(memName);
-    const blob = new Blob([data], { type: MIME[s.container] });
-    data = null;
-    const outSummary = summarize(await engine.probe(blob, '.' + s.container));
-    outSummary.sizeBytes = blob.size; // real size of what will be saved
-
-    showProgress(label('Saving the file'), null);
-    const savedNote = await saveOutput(blob, outFile, s.container, handle);
-
-    hideProgress();
-    const source = { ...state.src, dupPercent: state.analysis?.video?.dups?.percent, conversion: state.analysis?.video?.dups?.conversion };
-    const rows = verify(outSummary, s, state.preset, { source, fileName: outFile, strictness: state.config.strictness, extra });
-    showResult('Encoded: ' + outFile, rows, notes, savedNote);
-  } catch (e) {
-    hideProgress();
-    if (!state.cancelled) showError(friendlyError(e));
-  } finally {
-    state.running = false; state.cancelled = false;
-    $('btn-cancel').classList.add('hidden'); $('btn-encode').classList.remove('hidden'); update();
+  // Audio leveling: measure first, then build the filter.
+  let audioFilter = null, levelInfo = '';
+  if (leveling) {
+    const timer = timedProgress(label('Measuring audio levels'), dur);
+    ({ filter: audioFilter, info: levelInfo } = await planLeveling(engine, path, s, timer));
   }
+
+  const { args, notes } = buildArgs(s, state.src, path, memName, { audioFilter });
+  if (levelInfo) notes.push(levelInfo);
+  if (s.noiseOn) notes.push(`Light grain was added (strength ${s.noiseStrength}).`);
+  await engine.encode(args, timedProgress(label('Encoding video'), dur));
+
+  // Measure the finished file while it is still inside the encoder.
+  const tf = targetFormat(s, state.src);
+  const extra = {};
+  const stepName = label('Checking the result');
+  if (leveling) { showProgress(stepName + ' (audio levels)', null); extra.audio = await measureAudio(engine, memName); }
+  if (s.dupCheck) extra.video = await scanVideo(engine, memName, tf.fps, state.config.strictness.dupDiffThreshold, s.vcodec === 'prores' ? (s.proresProfile === '4444' ? 12 : 10) : 8, timedProgress(stepName + ' (frames)', dur));
+
+  // Pull the finished file out of the encoder, wrap it in a Blob (the browser
+  // can keep big Blobs on disk), and let the probe instance check it.
+  showProgress(stepName, null); $('eta').textContent = '';
+  let data = await engine.takeOutput(memName);
+  const blob = new Blob([data], { type: MIME[s.container] });
+  data = null;
+  const outSummary = summarize(await engine.probe(blob, '.' + s.container));
+  outSummary.sizeBytes = blob.size; // real size of what will be saved
+
+  showProgress(label('Saving the file'), null);
+  const handle = target.dir ? await target.dir.getFileHandle(outFile, { create: true }) : target.handle;
+  const saved = await saveOutput(blob, outFile, handle);
+  if (target.dir) saved.note = 'Saved in the folder you chose.';
+
+  hideProgress();
+  const source = { ...state.src, dupPercent: state.analysis?.video?.dups?.percent, conversion: state.analysis?.video?.dups?.conversion };
+  const rows = verify(outSummary, s, state.preset, { source, fileName: outFile, strictness: state.config.strictness, extra });
+  showResult((n > 1 ? `File ${i + 1} of ${n}: ` : 'Encoded: ') + outFile, rows, notes, saved.note, saved.url ? { url: saved.url, name: outFile } : null);
 }
 
 // A progress callback for a pass that reports "seconds of video done".
@@ -592,7 +733,10 @@ function renderPreflight() {
   for (const [l, r, stt, note] of rows) body.append(el('tr', {}, el('td', { text: l }), el('td', { text: r }), el('td', {}, el('span', { class: 'tag ' + stt, text: stt.toUpperCase() })), el('td', { class: 'note', text: note })));
   table.append(body);
   $('checklist').replaceChildren(...plainChecklist().map(checkItem));
-  $('check-for').textContent = state.preset.custom ? 'your settings' : state.preset.name;
+  const g = state.groups[state.active], n = state.groups.length;
+  $('check-for').textContent = !n ? 'your video (general checks only: tick a placement in step 2 to check against its spec)'
+    : state.preset.custom ? 'your settings'
+    : (n > 1 ? `file ${state.active + 1} of ${n} (${g.label}): ` : '') + state.preset.name;
   // Preview frames, with the preset's documented safe-zone guides drawn on top.
   const zones = state.preset.safeZones || [];
   const vw = src.video.width, vh = src.video.height;
@@ -627,7 +771,7 @@ function checkItem([status, text, more]) {
 // The automatic check in plain words, judged against the chosen placement.
 function plainChecklist() {
   const a = state.analysis, src = state.src, v = src.video, spec = state.preset.spec, s = state.settings, st = state.config.strictness;
-  const name = state.preset.custom ? 'your settings' : state.preset.name.split(':')[0].trim(); // "Cineplex" rather than "Cineplex: cinema pre-show"
+  const name = state.preset.custom ? 'your settings' : shortName(state.preset); // "Cineplex" rather than "Cineplex: cinema pre-show"
   const out = []; const add = (status, text, more) => out.push([status, text, more]);
   const t = targetFormat(s, src);
 
@@ -640,7 +784,7 @@ function plainChecklist() {
 
   // Length
   if (spec.maxDurationSec && src.durationSec > spec.maxDurationSec + st.durationToleranceSec)
-    add('bad', `Too long: ${src.durationSec.toFixed(1)} seconds. ${name} allows up to ${spec.maxDurationSec} seconds.`, 'Ask for a shorter cut.');
+    add('bad', `Too long: ${src.durationSec.toFixed(1)} seconds. ${spec.maxDurationBy || name} allows up to ${spec.maxDurationSec} seconds.`, 'Ask for a shorter cut.');
   else add('ok', `Length is ${src.durationSec.toFixed(1)} seconds.`);
 
   // Frame rate
@@ -665,13 +809,13 @@ function plainChecklist() {
   if (d.conversion) add(strict ? 'bad' : 'warn', 'This video looks like it was converted from another frame rate (a repeated frame every few frames).',
     'Disney+ and others reject this as "duplicate frames". Ask the editor for an export at the original frame rate. Grain can hide exact repeats but may not pass their check.');
   else if (d.percent > st.dupPassPercent) add(strict ? 'warn' : 'info', `Some frames repeat (${d.percent.toFixed(1)}% of frames, longest hold ${d.longestRunSec.toFixed(1)} s), for example a held still or end card.`,
-    strict ? `${name} rejects repeated frames. Tick "Add light grain" below to prevent this.` : 'Usually fine. If a placement ever rejects it for repeated frames, tick "Add light grain" below.');
+    strict ? `${spec.noDuplicateFramesBy || name} rejects repeated frames. Tick "Add light grain" below to prevent this.` : 'Usually fine. If a placement ever rejects it for repeated frames, tick "Add light grain" below.');
   else add('ok', 'No repeated frames.');
 
   // Black bars and black frames
   const bars = describeBars(a.video.crop, v.width, v.height, st.barTolerancePx);
   if (bars) add(spec.noLetterbox ? 'bad' : spec.barsAllowed ? 'info' : 'warn', `Black bars found (${bars}).`,
-    spec.noLetterbox ? `${name} does not allow black bars. The picture must fill the frame; this needs fixing in the edit.`
+    spec.noLetterbox ? `${spec.noLetterboxBy || name} does not allow black bars. The picture must fill the frame; this needs fixing in the edit.`
       : spec.barsAllowed ? `${name} accepts this. The picture just will not fill the whole screen.`
       : 'Some placements do not allow black bars around the picture.');
   else add('ok', 'No black bars around the picture.');
@@ -693,22 +837,21 @@ function zoneBox(z) {
 }
 
 // Save the finished file. Direct-to-disk where the browser allows, else a normal download.
-async function saveOutput(blob, name, container, handle) {
-  if (window.__testSink) { await window.__testSink(blob, name); return 'Test sink received ' + fmtBytes(blob.size) + '.'; }
+// Returns { note, url } (url only for a browser download, for "Download again").
+async function saveOutput(blob, name, handle) {
+  if (window.__testSink) { await window.__testSink(blob, name); return { note: 'Test sink received ' + fmtBytes(blob.size) + '.' }; }
   if (handle) {
     const w = await handle.createWritable();
     await w.write(blob);
     await w.close();
-    state.lastBlobUrl = null;
-    return 'Saved to the location you chose.';
+    return { note: 'Saved to the location you chose.' };
   }
-  if (state.lastBlobUrl) URL.revokeObjectURL(state.lastBlobUrl);
-  state.lastBlobUrl = URL.createObjectURL(blob); state.lastOutName = name;
-  triggerDownload();
-  return 'Downloaded through your browser (check your Downloads folder).';
+  const url = URL.createObjectURL(blob); state.blobUrls.push(url);
+  triggerDownload(url, name);
+  return { note: 'Downloaded through your browser (check your Downloads folder).', url };
 }
-function triggerDownload() {
-  const a = el('a', { href: state.lastBlobUrl, download: state.lastOutName });
+function triggerDownload(url, name) {
+  const a = el('a', { href: url, download: name });
   document.body.append(a); a.click(); a.remove();
 }
 
@@ -728,9 +871,13 @@ function onCheckSource() {
 }
 
 // ---------- result and errors ----------
-function clearResult() { $('sec-result').classList.add('hidden'); $('report').replaceChildren(); $('result-list').replaceChildren(); $('result-head').replaceChildren(); $('btn-download').classList.add('hidden'); $('saved').textContent = ''; }
+function clearResult() {
+  $('sec-result').classList.add('hidden'); $('results').replaceChildren();
+  for (const u of state.blobUrls) URL.revokeObjectURL(u);
+  state.blobUrls = [];
+}
 
-function showResult(title, rows, notes, savedNote) {
+function showResult(title, rows, notes, savedNote, dl) {
   const ov = overall(rows);
   const count = (st) => rows.filter(r => r.status === st).length;
   const where = state.preset.custom ? 'your settings' : state.preset.name;
@@ -739,13 +886,15 @@ function showResult(title, rows, notes, savedNote) {
     warn: `Ready for ${where}, with ${count('warn')} thing${count('warn') > 1 ? 's' : ''} to look at.`,
     fail: `${count('fail')} problem${count('fail') > 1 ? 's' : ''} found. The placement may reject this file.`
   }[ov];
-  $('result-head').replaceChildren(
+  const block = el('div', { class: 'result-block' },
     el('h3', { text: title, style: 'margin-top:0' }),
-    el('div', { class: 'banner ' + ov, text: label })
-  );
+    el('div', { class: 'banner ' + ov, text: label }));
+  const row = el('div', { class: 'row' });
+  if (dl) row.append(el('button', { class: 'primary', type: 'button', text: 'Download this file again', onclick: () => triggerDownload(dl.url, dl.name) }));
+  if (savedNote) row.append(el('span', { class: 'hint', text: savedNote }));
   // Plain list of only the things that need attention; the full table sits behind "Full technical report".
   const issues = rows.filter(r => r.status === 'fail' || r.status === 'warn');
-  $('result-list').replaceChildren(...issues.map(r => checkItem([r.status === 'fail' ? 'bad' : 'warn',
+  const list = el('ul', { class: 'checklist', style: 'margin-top:12px' }, ...issues.map(r => checkItem([r.status === 'fail' ? 'bad' : 'warn',
     `${r.label}: ${r.actual}` + (r.expected ? ` (should be ${r.expected})` : ''), r.note || ''])));
   const table = el('table', {}, el('thead', {}, el('tr', {}, ...['Check', 'Expected', 'Actual', 'Result', 'Note'].map(h => el('th', { text: h })))));
   const body = el('tbody');
@@ -753,13 +902,13 @@ function showResult(title, rows, notes, savedNote) {
     el('td', {}, el('span', { class: 'tag ' + r.status, text: r.status.toUpperCase() })), el('td', { class: 'note', text: r.note || '' })));
   table.append(body);
   const custom = changedFromPreset();
-  $('report').replaceChildren(table,
+  const report = el('details', { style: 'margin-top:14px' }, el('summary', { class: 'hint', style: 'cursor:pointer', text: 'Full technical report' }), table,
     ...(custom.length ? [el('p', { class: 'hint', text: 'Settings changed from the preset: ' + custom.join(', ') + '. The report checks against your current settings and the preset limits.' })] : []),
     ...(notes.length ? [el('ul', { class: 'notes' }, ...notes.map(n => el('li', { text: n })))] : []));
-  $('saved').textContent = savedNote || '';
-  $('btn-download').classList.toggle('hidden', !state.lastBlobUrl || !savedNote);
+  block.append(row, list, report);
+  $('results').append(block);
   $('sec-result').classList.remove('hidden');
-  $('sec-result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  block.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function changedFromPreset() {
@@ -809,26 +958,33 @@ async function init() {
   } catch (e) {
     msgs.append(el('div', { class: 'msg bad', text: 'Could not read presets.json. If you opened this page by double-clicking the file, use the web address instead. ' + e })); return;
   }
-  const sel = $('preset');
-  const groups = {};
-  for (const p of state.config.presets) (groups[p.group || 'Other'] ||= []).push(p);
-  for (const [g, list] of Object.entries(groups)) {
-    const og = el('optgroup', { label: g });
-    for (const p of list) og.append(el('option', { value: p.id, text: p.name }));
-    sel.append(og);
-  }
-  sel.addEventListener('change', () => choosePreset(sel.value));
-  $('reset-preset').addEventListener('click', () => { const keep = state.customize; choosePreset(state.preset.id); state.customize = keep; showAdvanced(); });
-  $('btn-customize').addEventListener('click', () => { state.customize = !state.customize; showAdvanced(); });
+  const tick = (p) => {
+    const cb = el('input', { type: 'checkbox', value: p.id });
+    cb.addEventListener('change', () => onTick(p, cb.checked));
+    return el('label', {}, cb, el('span', {}, p.custom ? 'Custom (choose every setting yourself)' : p.name));
+  };
+  const all = state.config.presets;
+  $('ticks-main').replaceChildren(...all.filter(p => !p.custom && p.group === 'Main placements').map(tick));
+  $('ticks-more').replaceChildren(...all.filter(p => !p.custom && p.group !== 'Main placements').map(tick));
+  $('ticks-custom').replaceChildren(...all.filter(p => p.custom).map(tick));
+  $('reset-preset').addEventListener('click', () => {
+    const g = state.groups[state.active]; if (!g) return;
+    g.settings = { ...g.defaults, noiseOn: raisesFps(g.defaults) }; state.settings = g.settings;
+    buildSettingsForm(); update();
+  });
+  $('btn-customize').addEventListener('click', () => {
+    state.customize = !state.customize;
+    const g = state.groups[state.active]; if (g) g.customize = state.customize;
+    showAdvanced();
+  });
   $('grain').addEventListener('change', () => { state.settings.noiseOn = $('grain').checked; update(); });
-  $('outname').addEventListener('input', update);
+  $('outname').addEventListener('input', () => { saveActiveName(); update(); });
   $('btn-encode').addEventListener('click', onEncode);
   $('btn-cancel').addEventListener('click', onCancel);
   $('btn-check').addEventListener('click', onCheckSource);
-  $('btn-download').addEventListener('click', triggerDownload);
   setupDrop();
   setupGuards();
-  choosePreset(state.config.presets[0].id);
-  window.__app = { state, engine, loadFile, choosePreset, onEncode, onCheckSource, setSetting }; // handy for testing
+  onTicks(); // nothing ticked yet
+  window.__app = { state, engine, loadFile, onTick, setActive, onEncode, onCheckSource, setSetting }; // handy for testing
 }
 init();

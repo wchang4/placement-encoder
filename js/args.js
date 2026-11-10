@@ -93,6 +93,9 @@ export function buildArgs(settings, src, inPath, outName, opts = {}) {
   if (s.faststart) args.push('-movflags', '+faststart');
   if (s.stripEditLists) args.push('-use_editlist', '0');
   args.push('-write_tmcd', '0'); // do not copy the timecode track
+  // Keep the file exactly as long as the source. Leveling and AAC can add a few
+  // hundredths of a second of audio, which pushed a 30.03 s spot over a 30 s limit.
+  if (src.durationSec > 0) args.push('-t', src.durationSec.toFixed(3));
   args.push('-y', outName);
   return { args, notes };
 }
