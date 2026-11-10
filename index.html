@@ -113,11 +113,26 @@
   details.expert{margin-top:18px;}
   details.expert > summary{cursor:pointer;font-weight:600;font-size:13px;}
   /* Placement ticks and file cards */
-  .ticks{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px 18px;margin-top:8px;}
-  .ticks label{display:flex;gap:8px;align-items:flex-start;padding:7px 10px;border-radius:10px;background:var(--surface-2);cursor:pointer;font-size:13.5px;}
-  .ticks label:hover{background:var(--surface-3);}
-  .ticks input{margin-top:3px;accent-color:var(--accent);}
-  .ticks .tag{font-size:11px;padding:1px 7px;margin-left:4px;}
+  .ticks{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:12px;margin-top:12px;}
+  .ticks.small{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;}
+  .tile{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:16px 12px 14px;
+    border-radius:14px;background:var(--surface-2);border:2px solid transparent;box-shadow:none;font-weight:500;cursor:pointer;
+    transition:border-color .12s ease,background .12s ease,transform .1s ease;}
+  .tile:hover:not(:disabled){background:var(--surface-3);transform:translateY(-1px);}
+  .tile:focus-visible{outline:none;box-shadow:0 0 0 2px var(--accent);}
+  .tile .logo{height:52px;width:100%;display:flex;align-items:center;justify-content:center;}
+  .tile .logo img{max-height:52px;max-width:80%;object-fit:contain;}
+  .tile .word{font-size:17px;font-weight:800;letter-spacing:-.01em;line-height:1.1;color:#fff;background:var(--brand);
+    padding:8px 14px;border-radius:9px;box-shadow:0 2px 6px rgba(0,0,0,.35);max-width:100%;}
+  .tile .sub{font-size:12px;color:var(--text-dim);line-height:1.35;}
+  .tile .chk{position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;border:2px solid rgba(255,255,255,.18);
+    display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:transparent;}
+  .tile.on{border-color:var(--accent);background:var(--accent-soft);}
+  .tile.on .chk{background:var(--accent);border-color:var(--accent);color:#211603;}
+  .ticks.small .tile{padding:12px 10px 10px;}
+  .ticks.small .tile .logo{height:36px;} .ticks.small .tile .logo img{max-height:36px;}
+  .ticks.small .tile .word{font-size:14px;padding:6px 11px;}
+  @media (max-width:520px){ .ticks,.ticks.small{grid-template-columns:repeat(2,1fr);} }
   .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:10px;}
   .card{background:var(--surface-2);border-radius:12px;padding:12px 14px;cursor:pointer;border:2px solid transparent;}
   .card:hover{background:var(--surface-3);}
@@ -169,13 +184,13 @@
 <!-- 2. PLACEMENT -->
 <section class="panel" id="sec-settings">
   <h2>2 · Where is it going?</h2>
-  <p class="hint" style="margin:0">Tick every placement this video is going to. Placements that take the same file are grouped, so you make as few files as possible.</p>
+  <p class="hint" style="margin:0">Click every placement this video is going to (click again to remove it). Placements that take the same file are grouped, so you make as few files as possible.</p>
   <div class="ticks" id="ticks-main"></div>
   <details style="margin-top:10px" id="more-wrap">
     <summary class="hint" style="cursor:pointer">More placements</summary>
-    <div class="ticks" id="ticks-more"></div>
+    <div class="ticks small" id="ticks-more"></div>
   </details>
-  <div class="ticks" id="ticks-custom" style="margin-top:10px"></div>
+  <div class="ticks small" id="ticks-custom" style="margin-top:10px"></div>
 
   <div id="files-area" class="hidden">
     <h3 id="files-head" style="margin-top:20px"></h3>

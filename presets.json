@@ -9,7 +9,8 @@
     "Bitrates are in kilobits per second (kbps). 10000 kbps = 10 Mbps. 'minKbps' and 'maxKbps' are the range the report checks; 'bitrateKbps' is the default the form starts with.",
     "'loudness' modes: off (do nothing), lufs (targetDb = integrated LUFS, peakDb = true peak limit), rms (targetDb = average RMS level, peakDb = peak limit). 'noLetterbox': true makes black bars a FAIL in the report. 'noDuplicateFrames': true marks a placement that rejects repeated frames (the check then flags them as problems).",
     "'group' decides where a placement appears in the list: \"Main placements\" first, then \"More placements\". The preset with \"custom\": true is the Custom option, which shows every setting.",
-    "'safeZones' (optional): guides drawn over the preview frames. Each has a label, type ('safe' = keep content inside, 'avoid' = keep content out), and x, y, w, h in pixels on a reference frame of refW x refH. Only add zones that are documented by the placement."
+    "'safeZones' (optional): guides drawn over the preview frames. Each has a label, type ('safe' = keep content inside, 'avoid' = keep content out), and x, y, w, h in pixels on a reference frame of refW x refH. Only add zones that are documented by the placement.",
+    "\"tile\" sets how a placement looks in step 2: \"title\", a short \"sub\" line, an accent \"color\", and an optional \"logo\" (path to an image in the logos folder, for example \"logos/cineplex.svg\"). With no logo, the title is shown in the accent colour."
   ],
   "strictness": {
     "_note": "How the report decides PASS / WARN / FAIL. Loudness within loudnessPassDb of target = PASS, within loudnessWarnDb = WARN, else FAIL. A frame counts as a duplicate when its average brightness differs from the previous frame by less than dupDiffThreshold (0 to 255 scale).",
@@ -34,6 +35,12 @@
     {
       "id": "cineplex-preshow",
       "name": "Cineplex: cinema pre-show",
+      "tile": {
+        "title": "Cineplex",
+        "sub": "Cinema pre-show",
+        "color": "#0b3b8c",
+        "logo": ""
+      },
       "group": "Main placements",
       "file": "cinema",
       "status": "unverified",
@@ -116,6 +123,12 @@
     {
       "id": "rogers-ctv",
       "name": "Rogers: connected TV (PLACEHOLDER)",
+      "tile": {
+        "title": "Rogers",
+        "sub": "Connected TV (placeholder)",
+        "color": "#da291c",
+        "logo": ""
+      },
       "group": "Main placements",
       "file": "ctv",
       "status": "unverified",
@@ -186,6 +199,12 @@
     {
       "id": "bell-crave-ctv",
       "name": "Crave / Bell Media: connected TV",
+      "tile": {
+        "title": "Crave / Bell",
+        "sub": "Connected TV: Crave, CTV, Noovo, TSN",
+        "color": "#00549a",
+        "logo": ""
+      },
       "group": "Main placements",
       "file": "ctv",
       "status": "unverified",
@@ -260,6 +279,12 @@
     {
       "id": "amazon-prime",
       "name": "Amazon Prime Video",
+      "tile": {
+        "title": "Prime Video",
+        "sub": "Amazon streaming",
+        "color": "#0f79d0",
+        "logo": ""
+      },
       "group": "Main placements",
       "file": "streaming",
       "status": "unverified",
@@ -325,6 +350,12 @@
     {
       "id": "disney-h264",
       "name": "Disney+",
+      "tile": {
+        "title": "Disney+",
+        "sub": "Streaming (MP4)",
+        "color": "#113ccf",
+        "logo": ""
+      },
       "group": "Main placements",
       "file": "streaming",
       "status": "unverified",
@@ -413,6 +444,12 @@
     {
       "id": "disney-prores",
       "name": "Disney+ (ProRes MOV version)",
+      "tile": {
+        "title": "Disney+",
+        "sub": "ProRes MOV version",
+        "color": "#113ccf",
+        "logo": ""
+      },
       "group": "More placements",
       "status": "unverified",
       "verifiedDate": "",
@@ -492,6 +529,12 @@
     {
       "id": "cineplex-lobby",
       "name": "Cineplex: lobby screens (no audio)",
+      "tile": {
+        "title": "Cineplex",
+        "sub": "Lobby screens (no audio)",
+        "color": "#0b3b8c",
+        "logo": ""
+      },
       "group": "More placements",
       "file": "cinema",
       "status": "unverified",
@@ -556,6 +599,12 @@
     {
       "id": "landmark-preshow",
       "name": "Landmark Cinemas (PLACEHOLDER)",
+      "tile": {
+        "title": "Landmark",
+        "sub": "Cinema pre-show (placeholder)",
+        "color": "#8a1c2b",
+        "logo": ""
+      },
       "group": "More placements",
       "file": "cinema",
       "status": "unverified",
@@ -616,6 +665,12 @@
     {
       "id": "spotify-video",
       "name": "Spotify video ad",
+      "tile": {
+        "title": "Spotify",
+        "sub": "Video ad",
+        "color": "#15883e",
+        "logo": ""
+      },
       "group": "More placements",
       "status": "unverified",
       "verifiedDate": "",
@@ -683,6 +738,12 @@
     {
       "id": "youtube",
       "name": "YouTube",
+      "tile": {
+        "title": "YouTube",
+        "sub": "Standard video",
+        "color": "#e0002b",
+        "logo": ""
+      },
       "group": "More placements",
       "file": "streaming",
       "status": "unverified",
@@ -750,6 +811,12 @@
     {
       "id": "youtube-shorts",
       "name": "YouTube Shorts (vertical, unverified)",
+      "tile": {
+        "title": "YouTube Shorts",
+        "sub": "Vertical 9:16",
+        "color": "#e0002b",
+        "logo": ""
+      },
       "group": "More placements",
       "file": "vertical",
       "status": "unverified",
@@ -823,6 +890,12 @@
     {
       "id": "meta-vertical",
       "name": "Meta Reels / Stories (vertical, unverified)",
+      "tile": {
+        "title": "Meta",
+        "sub": "Reels and Stories, vertical",
+        "color": "#0a5fd6",
+        "logo": ""
+      },
       "group": "More placements",
       "file": "vertical",
       "status": "unverified",
@@ -885,6 +958,12 @@
     {
       "id": "universal",
       "name": "General purpose MP4 (any other placement)",
+      "tile": {
+        "title": "General MP4",
+        "sub": "Any other placement",
+        "color": "#4f5866",
+        "logo": ""
+      },
       "group": "More placements",
       "file": "streaming",
       "status": "unverified",
@@ -949,6 +1028,12 @@
     {
       "id": "custom",
       "name": "Custom (choose the settings yourself)",
+      "tile": {
+        "title": "Custom",
+        "sub": "Choose every setting yourself",
+        "color": "#4f5866",
+        "logo": ""
+      },
       "group": "Custom",
       "status": "unverified",
       "verifiedDate": "",

@@ -12,6 +12,7 @@ The check is technical only. It is not a guarantee a placement will accept the f
 | `guide.html` | One-page user guide for teammates. Linked from the tool. |
 | `presets.json` | All placement presets. **This is the file you edit.** |
 | `js/` | The tool's code (comments in plain language). |
+| `logos/` | Optional placement logos for the step 2 tiles (see `logos/README.txt`). Empty by default. |
 | `vendor/` | The encoder library, pinned and self-hosted: `@ffmpeg/ffmpeg` 0.12.15, `@ffmpeg/core` 0.12.10. Do not edit or update casually. |
 | `serve.py` | Local test server (`python serve.py`, then open http://127.0.0.1:8080). Not needed on GitHub Pages. |
 | `SCOPE.md`, `PHASE0-REPORT.md` | Internal design notes. Kept on the local copy only and not published (see `.gitignore`), along with the `spike/` test code. |
@@ -28,6 +29,7 @@ Open `presets.json` in any text editor (Notepad is fine). The instructions are a
    - `naming`: file name rule (`maxLength`, `allowedChars`).
    - `loudness`: `mode` is `off`, `lufs` (integrated loudness, as a target), `rms` (average level, as a target) or `max` (limits only: audio that is already quiet enough is left alone, louder audio is turned down; use this for specs worded "no higher than", such as Cineplex), with `targetDb` and `peakDb`.
    - `group`: `"Main placements"` (top of the list) or `"More placements"`. The preset with `"custom": true` is the Custom option.
+   - `tile`: how the placement looks in step 2: `title`, a short `sub` line, an accent `color` (dark enough for white text) and an optional `logo` path, for example `"logos/cineplex.svg"`. See `logos/README.txt`. With no logo, the title is shown on a badge in the accent colour.
    - `file` (optional): placements with the same `file` value share ONE file. The top-level `files` block names each shared file (`label`, a short `tag` added to the file name) and says which preset's settings it is made with (`settingsFrom`, plus optional `settings` overrides). The shared file is checked against the strictest rule of every placement in it. Remove a placement's `file` line to give it its own file.
    - `spec.barsAllowed`: `true` when the placement is known to accept black bars (Cineplex). The check then shows bars as information instead of a warning. `spec.noLetterbox: true` makes bars a problem.
    - `spec.noDuplicateFrames`: `true` for placements known to reject repeated frames (Disney+). The check then treats repeats as a problem instead of information.

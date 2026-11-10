@@ -236,7 +236,10 @@ function onTick(p, on) {
   if (on && p.custom) state.ticked = [p.id];                                   // Custom stands alone
   else if (on) state.ticked = state.ticked.filter(id => !isCustom(id)).concat(p.id);
   else state.ticked = state.ticked.filter(id => id !== p.id);
-  for (const cb of document.querySelectorAll('.ticks input')) cb.checked = state.ticked.includes(cb.value);
+  for (const t of document.querySelectorAll('.tile')) {
+    const on = state.ticked.includes(t.dataset.id);
+    t.classList.toggle('on', on); t.setAttribute('aria-pressed', String(on));
+  }
   onTicks();
 }
 
@@ -958,10 +961,24 @@ async function init() {
   } catch (e) {
     msgs.append(el('div', { class: 'msg bad', text: 'Could not read presets.json. If you opened this page by double-clicking the file, use the web address instead. ' + e })); return;
   }
+  // One clickable tile per placement: logo (or the name in the placement's colour),
+  // a short line saying what it is, and a tick when chosen.
   const tick = (p) => {
-    const cb = el('input', { type: 'checkbox', value: p.id });
-    cb.addEventListener('change', () => onTick(p, cb.checked));
-    return el('label', {}, cb, el('span', {}, p.custom ? 'Custom (choose every setting yourself)' : p.name));
+    const tl = p.tile || {};
+    const title = tl.title || p.name;
+    const word = () => el('span', { class: 'word', text: title });
+    const logo = el('div', { class: 'logo' });
+    if (tl.logo) {
+      const img = el('img', { src: tl.logo, alt: title });
+      img.addEventListener('error', () => logo.replaceChildren(word())); // missing file: fall back to the name
+      logo.append(img);
+    } else logo.append(word());
+    const b = el('button', { type: 'button', class: 'tile', 'data-id': p.id, 'aria-pressed': 'false', title: p.name, style: `--brand:${tl.color || 'var(--text)'}` },
+      el('span', { class: 'chk', text: '✓' }), logo,
+      ...(tl.logo ? [el('span', { class: 'sub', style: 'color:var(--text);font-weight:600', text: title })] : []),
+      el('span', { class: 'sub', text: tl.sub || '' }));
+    b.addEventListener('click', () => onTick(p, !state.ticked.includes(p.id)));
+    return b;
   };
   const all = state.config.presets;
   $('ticks-main').replaceChildren(...all.filter(p => !p.custom && p.group === 'Main placements').map(tick));
