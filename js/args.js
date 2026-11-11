@@ -5,10 +5,21 @@
 const PRORES_PROFILE_NUM = { proxy: 0, lt: 1, '422': 2, hq: 3, '4444': 4 };
 
 // Work out the output picture size and frame rate the settings will produce.
+// The file always keeps the shape of the uploaded video (wide, square or vertical).
+// A preset's width x height is its size for its own shape; any other shape gets the
+// same short edge (1080 for a 1920 x 1080 preset), so a square becomes 1080 x 1080
+// and a vertical 1080 x 1920. Nothing is ever stretched, cropped or reframed.
 export function targetFormat(settings, src) {
   const v = src.video;
-  const w = settings.width || v.width;
-  const h = settings.height || v.height;
+  let w = settings.width || v.width;
+  let h = settings.height || v.height;
+  const srcRatio = v.width / v.height;
+  if (Math.abs(w / h - srcRatio) / srcRatio > 0.01) {
+    const short = Math.min(w, h);
+    const even = (x) => Math.max(2, 2 * Math.round(x / 2));
+    if (srcRatio >= 1) { h = short; w = even(short * srcRatio); }
+    else { w = short; h = even(short / srcRatio); }
+  }
   const fps = settings.fps === 'native' ? v.fps : Number(settings.fps);
   const convertsFps = settings.fps !== 'native' && Math.abs(fps - v.fps) / v.fps > 0.001;
   const scales = w !== v.width || h !== v.height;

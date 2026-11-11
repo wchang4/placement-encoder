@@ -14,6 +14,7 @@
 
 import { fmtFps, fmtKbps, fmtBytes, aspectLabel, aspectValue } from './media.js';
 import { describeBars, describeBlackEnds } from './analyze.js';
+import { targetFormat } from './args.js';
 
 const PRORES_NAMES = { proxy: 'proxy', lt: 'lt', '422': 'standard', hq: 'hq', '4444': '4444' };
 
@@ -48,7 +49,9 @@ export function verify(summary, settings, preset, opts) {
   }
 
   // 5. Resolution
-  const wantW = settings.width, wantH = settings.height;
+  // Expected size keeps the uploaded shape (see targetFormat in args.js).
+  const tf = src?.video ? targetFormat(settings, src) : null;
+  const wantW = tf ? tf.w : settings.width, wantH = tf ? tf.h : settings.height;
   if (wantW && wantH) {
     add('Resolution', `${wantW} x ${wantH}`, `${v.width} x ${v.height}`, v.width === wantW && v.height === wantH ? 'pass' : 'fail');
   } else {
@@ -64,8 +67,8 @@ export function verify(summary, settings, preset, opts) {
   if (aspects) {
     const got = v.width / v.height;
     const ok = aspects.some(l => Math.abs(got - aspectValue(l)) / aspectValue(l) < 0.01);
-    add('Aspect ratio', aspects.join(' or '), aspectLabel(v.width, v.height), ok ? 'pass' : 'fail',
-      ok ? '' : 'This tool does not crop or reframe. A file with the right shape must be supplied.');
+    add('Aspect ratio', aspects.join(' or ') + ' (on the spec sheet)', aspectLabel(v.width, v.height), ok ? 'pass' : 'info',
+      ok ? '' : 'Kept in the shape you uploaded. Check that the placement accepts this shape.');
   }
 
   // 7. Frame rate

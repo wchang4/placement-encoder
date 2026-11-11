@@ -841,7 +841,7 @@
       "name": "YouTube",
       "tile": {
         "title": "YouTube",
-        "sub": "Standard video",
+        "sub": "Any shape, including Shorts",
         "color": "#e0002b",
         "logo": ""
       },
@@ -858,7 +858,8 @@
         "1080p about 8 Mbps (12 Mbps for 48 to 60 fps). Audio AAC-LC stereo 48 kHz at 384 kbps.",
         "This tool does not deinterlace. Interlaced sources show a warning.",
         "YouTube recommends about 8 to 16 Mbps for 1080p but accepts higher, so no upper limit is checked.",
-        "YouTube recommends 384 kbps stereo audio but accepts less, so audio bitrate is not checked. (The encoder delivers less than requested on quiet audio.)"
+        "YouTube recommends 384 kbps stereo audio but accepts less, so audio bitrate is not checked. (The encoder delivers less than requested on quiet audio.)",
+        "Any shape works. A vertical (9:16) or square video up to 3 minutes shows as a YouTube Short; keep key content inside the centre so the Shorts buttons do not cover it."
       ],
       "settings": {
         "container": "mp4",
@@ -910,95 +911,15 @@
       }
     },
     {
-      "id": "youtube-shorts",
-      "name": "YouTube Shorts (vertical, unverified)",
-      "tile": {
-        "title": "YouTube Shorts",
-        "sub": "Vertical 9:16",
-        "color": "#e0002b",
-        "logo": ""
-      },
-      "group": "More placements",
-      "file": "vertical",
-      "status": "unverified",
-      "verifiedDate": "",
-      "source": {
-        "label": "Third-party summaries. Not confirmed. Unknown whether organic Shorts or Shorts ad placements are needed; ad specs may differ.",
-        "url": ""
-      },
-      "notes": [
-        "9:16, 1080 x 1920, MP4 or MOV, up to 3 minutes. Keep key content inside a centred 4:5 area.",
-        "The vertical file must come from the creative team; this tool does not reframe."
-      ],
-      "settings": {
-        "container": "mp4",
-        "vcodec": "h264",
-        "h264Profile": "high",
-        "proresProfile": "hq",
-        "pixFmt": "yuv420p",
-        "width": 1080,
-        "height": 1920,
-        "fps": "native",
-        "bitrateMode": "vbr",
-        "bitrateKbps": 10000,
-        "x264Preset": "fast",
-        "bframes": 2,
-        "gopSeconds": 0.5,
-        "closedGop": true,
-        "faststart": true,
-        "stripEditLists": true,
-        "tagBt709": true,
-        "acodec": "aac",
-        "sampleRate": 48000,
-        "bitDepth": 16,
-        "channels": 2,
-        "audioKbps": 384
-      },
-      "spec": {
-        "minKbps": null,
-        "maxKbps": null,
-        "allowedFps": null,
-        "aspect": "9:16",
-        "minShortEdge": null,
-        "audioRequired": true,
-        "minAudioKbps": null,
-        "maxSizeMB": null,
-        "maxDurationSec": null,
-        "h264ProfilesAllowed": null
-      },
-      "naming": {
-        "maxLength": null,
-        "allowedChars": null,
-        "note": ""
-      },
-      "loudness": {
-        "mode": "off",
-        "note": ""
-      },
-      "safeZones": [
-        {
-          "label": "Centred 4:5 area (UNVERIFIED, third-party summary)",
-          "type": "safe",
-          "x": 0,
-          "y": 285,
-          "w": 1080,
-          "h": 1350,
-          "refW": 1080,
-          "refH": 1920
-        }
-      ]
-    },
-    {
-      "id": "meta-vertical",
-      "name": "Meta Reels / Stories (vertical, unverified)",
+      "id": "meta",
+      "name": "Meta: Facebook and Instagram (unverified)",
       "tile": {
         "title": "Meta",
-        "sub": "Reels and Stories, vertical",
+        "sub": "Facebook and Instagram, any shape",
         "color": "#0a5fd6",
         "logo": ""
       },
       "group": "More placements",
-      "file": "vertical",
       "status": "unverified",
       "verifiedDate": "",
       "source": {
@@ -1006,9 +927,8 @@
         "url": ""
       },
       "notes": [
-        "MP4 or MOV, H.264, max 4 GB. 9:16 at 1080 x 1920 with a 720 px minimum short edge. Reels ads up to 90 seconds, Stories up to 120 seconds.",
-        "This preset checks the stricter 90 seconds. Change maxDurationSec to 120 for Stories.",
-        "The vertical file must come from the creative team; this tool does not reframe."
+        "MP4 or MOV, H.264, max 4 GB, 720 px minimum short edge. Feed, Reels and Stories all take this file.",
+        "Any shape works: 16:9, 1:1, 4:5 and 9:16. The file keeps the shape you upload. Reels and Stories fill the screen best with 9:16."
       ],
       "settings": {
         "container": "mp4",
@@ -1038,13 +958,14 @@
         "minKbps": null,
         "maxKbps": null,
         "allowedFps": null,
-        "aspect": "9:16",
+        "aspect": null,
         "minShortEdge": 720,
         "audioRequired": true,
         "minAudioKbps": null,
         "maxSizeMB": 4096,
         "maxDurationSec": null,
-        "h264ProfilesAllowed": null
+        "h264ProfilesAllowed": null,
+        "allowedAspects": null
       },
       "naming": {
         "maxLength": null,
@@ -1223,11 +1144,6 @@
       "label": "Connected TV, small file (MP4, under 25 MB)",
       "tag": "CTV",
       "settingsFrom": "bell-crave-ctv"
-    },
-    "vertical": {
-      "label": "Vertical 9:16 (MP4)",
-      "tag": "VERT",
-      "settingsFrom": "youtube-shorts"
     }
   }
 }

@@ -372,14 +372,8 @@ function computeWarnings() {
   if (!src.audio && !spec.audioRequired) add('info', 'Your video has no sound. The new file will have none either.');
 
   const t = targetFormat(s, src);
-  // reframing is out of scope: refuse to silently stretch
-  const srcAspect = v.width / v.height, tgtAspect = t.w / t.h;
-  if (t.scales && Math.abs(srcAspect - tgtAspect) / srcAspect > 0.01)
-    add('bad', `The source is ${aspectLabel(v.width, v.height)} (${v.width}x${v.height}) but the target is ${t.w}x${t.h}. This tool does not crop or reframe, so the picture would be stretched. Supply a file with the right shape.`, true);
-  else if (t.scales) add(t.w > v.width ? 'warn' : 'info', `Resolution will be changed from ${v.width}x${v.height} to ${t.w}x${t.h}${t.w > v.width ? ' (upscaling reduces sharpness)' : ''}.`);
-  const aspects = spec.allowedAspects || (spec.aspect ? [spec.aspect] : null);
-  if (aspects && !(t.scales && Math.abs(srcAspect - tgtAspect) / srcAspect > 0.01) && !aspects.some(l => Math.abs(tgtAspect - aspectValue(l)) / aspectValue(l) < 0.01))
-    add('bad', `This placement needs ${aspects.join(' or ')}, but the output would be ${aspectLabel(t.w, t.h)}. This tool does not reframe. Supply a file with the right shape.`, true);
+  // The output keeps the uploaded shape (see targetFormat), so shape never blocks.
+  if (t.scales) add(t.w > v.width ? 'warn' : 'info', `Resolution will be changed from ${v.width}x${v.height} to ${t.w}x${t.h}${t.w > v.width ? ' (upscaling reduces sharpness)' : ''}.`);
   if (spec.minShortEdge && Math.min(t.w, t.h) < spec.minShortEdge) add('warn', `The short edge is ${Math.min(t.w, t.h)} px; this placement wants at least ${spec.minShortEdge} px.`);
 
   if (t.convertsFps) add('warn', `The frame rate will be changed from ${fmtFps(v.fps)} to ${fmtFps(t.fps)} fps. ` + (t.fps > v.fps
@@ -791,10 +785,11 @@ function plainChecklist() {
 
   // Shape and size
   const aspects = spec.allowedAspects || (spec.aspect ? [spec.aspect] : null);
-  const shapeOk = !aspects || aspects.some(l => Math.abs(v.width / v.height - aspectValue(l)) / aspectValue(l) < 0.01);
-  if (!shapeOk) add('bad', `Wrong shape: ${name} needs ${aspects.join(' or ')}, and this video is ${aspectLabel(v.width, v.height)}.`, 'This tool does not crop or reframe. Ask the creative team for a version in the right shape.');
-  else if (t.scales) add('ok', `Shape is right. The picture will be resized from ${v.width} x ${v.height} to ${t.w} x ${t.h}.`, t.w > v.width ? 'Making a picture bigger than the original can look slightly soft.' : '');
-  else add('ok', `Shape and size are right (${v.width} x ${v.height}).`);
+  const shapeListed = !aspects || aspects.some(l => Math.abs(v.width / v.height - aspectValue(l)) / aspectValue(l) < 0.01);
+  const shape = aspectLabel(v.width, v.height);
+  if (t.scales) add('ok', `The video is ${shape} and stays ${shape}. It will be resized from ${v.width} x ${v.height} to ${t.w} x ${t.h}.`, t.w > v.width ? 'Making a picture bigger than the original can look slightly soft.' : '');
+  else add('ok', `The video is ${shape} (${v.width} x ${v.height}) and stays that shape.`);
+  if (!shapeListed) add('info', `${name}'s spec sheet lists ${aspects.join(' or ')}. The file will still be made in your video's own shape, so check that ${name} accepts it.`);
 
   // Length: close to a standard spot length = made exactly that long.
   const spot = spotLength(src.durationSec, t.fps, state.config.spotLengths);

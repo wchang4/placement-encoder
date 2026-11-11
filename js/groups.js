@@ -10,7 +10,7 @@
 // combined preset: settings from the file's "settingsFrom" preset (plus any
 // overrides), and a spec that keeps the strictest value of every member.
 
-// "Cineplex" from "Cineplex: cinema pre-show", "YouTube Shorts" from "YouTube Shorts (vertical, unverified)"
+// "Cineplex" from "Cineplex: cinema pre-show", "Meta" from "Meta: Facebook and Instagram (unverified)"
 export const shortName = (p) => p.name.split(':')[0].replace(/\s*\([^)]*\)\s*$/, '').trim();
 
 // "A", "A and B", "A, B and C" (duplicates removed)
