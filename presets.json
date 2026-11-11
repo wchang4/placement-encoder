@@ -302,13 +302,16 @@
       "status": "unverified",
       "verifiedDate": "",
       "source": {
-        "label": "CTV Ottawa local station spec sheet (supplied by team 2026-11-11): 10 seconds of black at the end. Other values are placeholders until the rest of the sheet is entered.",
+        "label": "CTV local station commercial specs (Word document supplied by team, 2026-11-11, undated)",
         "url": ""
       },
       "notes": [
-        "Local CTV stations (for example CTV Ottawa) ask for 10 seconds of black at the end of the spot. This tile adds it automatically, with silence, after the spot is cut to its exact length.",
-        "Only the 10 seconds of black is confirmed from the CTV sheet. The file format below (high-quality MP4, -24 LKFS) is a placeholder: check it against the station's sheet.",
-        "Not for Crave, the CTV app or other Bell streaming: those use the Crave / Bell tile, which must not have black at the end."
+        "Local CTV stations ask for at least 10 seconds of black after the commercial. This tile adds 10 seconds of black and silence after the spot is cut to its exact length.",
+        "Accepted: MOV, MP4 or AVI at 1920 x 1080, ProRes 4:2:2 or H.264. This preset makes an H.264 MP4 at a steady 20 Mbps.",
+        "Audio 48 kHz, stereo or mono mix (no split tracks). The sheet gives no loudness target, so the Canadian broadcast standard of -24 LKFS is used.",
+        "File name: Client_SpotName_Duration_ProductionCompany, for example CAA_TravelInsurance_30_CAANEO. Type it yourself.",
+        "Closed captions go as a separate .scc file. This tool does not make captions.",
+        "Upload at least 2 business days before the start date. Upload details are on the station's sheet; check with your CTV Account Executive."
       ],
       "settings": {
         "container": "mp4",
@@ -341,7 +344,7 @@
         "allowedFps": null,
         "aspect": null,
         "minShortEdge": null,
-        "audioRequired": true,
+        "audioRequired": false,
         "minAudioKbps": null,
         "maxSizeMB": null,
         "maxDurationSec": null,
@@ -351,13 +354,15 @@
       "naming": {
         "maxLength": null,
         "allowedChars": null,
-        "note": ""
+        "pattern": "^[A-Za-z0-9]+_[A-Za-z0-9]+_[0-9]{1,3}_[A-Za-z0-9]+$",
+        "patternLabel": "Client_SpotName_Duration_ProductionCompany",
+        "note": "Use Client_SpotName_Duration_ProductionCompany, for example CAA_TravelInsurance_30_CAANEO. No spaces."
       },
       "loudness": {
         "mode": "lufs",
         "targetDb": -24,
         "peakDb": -2,
-        "note": "-24 LKFS is the Canadian broadcast standard. Confirm the peak limit with the station's sheet."
+        "note": "Not on the CTV sheet. Uses the Canadian broadcast standard (-24 LKFS, peaks no higher than -2 dB)."
       }
     },
     {
