@@ -20,10 +20,41 @@ export function targetFormat(settings, src) {
     if (srcRatio >= 1) { h = short; w = even(short * srcRatio); }
     else { w = short; h = even(short / srcRatio); }
   }
-  const fps = settings.fps === 'native' ? v.fps : Number(settings.fps);
-  const convertsFps = settings.fps !== 'native' && Math.abs(fps - v.fps) / v.fps > 0.001;
+  // Frame rate: "native" keeps the video's own rate when the placement accepts it.
+  // When it does not, the closest accepted rate is picked automatically (see pickFps).
+  let fps = settings.fps === 'native' ? v.fps : Number(settings.fps);
+  let autoFps = false;
+  const allowed = settings.allowedFps;
+  if (settings.fps === 'native' && allowed?.length && !allowed.some(a => Math.abs(a - v.fps) / a < 0.0005)) {
+    fps = pickFps(v.fps, allowed); autoFps = true;
+  }
+  const convertsFps = Math.abs(fps - v.fps) / v.fps > 0.0005;
+  // 30 to 29.97 (and 24 to 23.976, 60 to 59.94, or back) differ by only 0.1%. These are
+  // "conformed": every frame is kept and simply shown 0.1% slower (or faster), with the
+  // sound stretched to match. Nothing is dropped or repeated, and the change cannot be
+  // seen or heard. A 15 s spot at 30 fps becomes 450 frames at 29.97 (15:00 in timecode).
+  const conform = convertsFps && Math.abs(fps / v.fps - 1) < 0.0015;
+  const raises = convertsFps && !conform && fps > v.fps;   // repeats frames
+  const lowers = convertsFps && !conform && fps < v.fps;   // drops frames evenly
   const scales = w !== v.width || h !== v.height;
-  return { w, h, fps, convertsFps, scales };
+  return { w, h, fps, convertsFps, conform, raises, lowers, autoFps, scales };
+}
+
+// Closest accepted frame rate: first one that can be conformed (0.1% away), then the
+// highest rate below the video's (frames are dropped evenly, nothing repeats), and
+// only then the lowest rate above it (frames repeat; grain is offered).
+export function pickFps(src, allowed) {
+  const near = allowed.find(a => Math.abs(a / src - 1) < 0.0015);
+  if (near) return near;
+  const below = allowed.filter(a => a < src).sort((a, b) => b - a)[0];
+  if (below) return below;
+  return allowed.slice().sort((a, b) => a - b)[0];
+}
+
+// How long the new file runs before any spot trimming: a conformed video is 0.1% longer
+// or shorter than the source.
+export function outDuration(src, t) {
+  return t.conform ? src.durationSec * src.video.fps / t.fps : src.durationSec;
 }
 
 // Standard spot lengths: a video that is close to 6, 15, 30 or 60 seconds is made
@@ -53,7 +84,9 @@ export function buildArgs(settings, src, inPath, outName, opts = {}) {
   // ---- video filters ----
   const vf = [];
   if (t.scales) vf.push(`scale=${t.w}:${t.h}:flags=lanczos`, 'setsar=1');
-  if (t.convertsFps) vf.push(`fps=${t.fps === 29.97 ? '30000/1001' : t.fps === 23.976 ? '24000/1001' : t.fps === 59.94 ? '60000/1001' : t.fps}`);
+  const rate = t.fps === 29.97 ? '30000/1001' : t.fps === 23.976 ? '24000/1001' : t.fps === 59.94 ? '60000/1001' : String(t.fps);
+  if (t.conform) vf.push(`setpts=PTS*${(src.video.fps / t.fps).toFixed(9)}`, `fps=${rate}`);   // same frames, new timing
+  else if (t.convertsFps) vf.push(`fps=${rate}`);
   // Optional light noise layer for duplicate-frame prevention: temporal (changes on
   // every frame) and uniform. Applied after any scaling or frame rate change so every
   // output frame gets different noise.
@@ -64,7 +97,7 @@ export function buildArgs(settings, src, inPath, outName, opts = {}) {
   // Black at the end (local CTV stations ask for 10 s): cut the spot to its exact
   // length first, then add pure black (after the grain, so the black stays clean).
   const tail = s.tailBlackSec > 0 ? s.tailBlackSec : 0;
-  const mainSec = spot ? spot.exactSec : src.durationSec;
+  const mainSec = spot ? spot.exactSec : outDuration(src, t);
   if (tail) {
     vf.push(spot ? `trim=end_frame=${spot.frames}` : `trim=end=${mainSec.toFixed(6)}`, 'setpts=PTS-STARTPTS');
     vf.push(`tpad=stop_mode=add:stop_duration=${tail}:color=black`);
@@ -121,7 +154,8 @@ export function buildArgs(settings, src, inPath, outName, opts = {}) {
       args.push('-c:a', 'aac', '-b:a', Math.round(s.audioKbps) + 'k');
     }
     // Silence fills any gap at the end, so the sound is exactly as long as the picture.
-    const af = [opts.audioFilter, tail ? `atrim=end=${mainSec.toFixed(6)},asetpts=PTS-STARTPTS` : null, (spot || tail) ? 'apad' : null].filter(Boolean).join(',');
+    // A conformed video's sound is stretched by the same 0.1% (pitch kept).
+    const af = [t.conform ? `atempo=${(t.fps / src.video.fps).toFixed(9)}` : null, opts.audioFilter, tail ? `atrim=end=${mainSec.toFixed(6)},asetpts=PTS-STARTPTS` : null, (spot || tail) ? 'apad' : null].filter(Boolean).join(',');
     if (af) args.push('-af', af);
     args.push('-ar', String(s.sampleRate), '-ac', String(s.channels));
   } else {
@@ -138,7 +172,7 @@ export function buildArgs(settings, src, inPath, outName, opts = {}) {
   // closed the file as soon as the last picture was written, while the sound leveling
   // was still about 3 s behind, which cut the audio short (tested).
   if (spot) args.push('-t', (spot.exactSec + tail).toFixed(6));
-  else if (src.durationSec > 0) args.push('-t', (src.durationSec + tail).toFixed(3));
+  else if (src.durationSec > 0) args.push('-t', (outDuration(src, t) + tail).toFixed(3));
   args.push('-y', outName);
   return { args, notes };
 }

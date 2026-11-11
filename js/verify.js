@@ -70,8 +70,8 @@ export function verify(summary, settings, preset, opts) {
   if (spec.allowedFps) {
     const ok = spec.allowedFps.some(f => close(v.fps, f));
     add('Frame rate', spec.allowedFps.map(fmtFps).join(' / ') + ' fps', fmtFps(v.fps) + ' fps', ok ? 'pass' : 'fail');
-  } else if (settings.fps === 'native' && src?.video) {
-    add('Frame rate', 'same as source (' + fmtFps(src.video.fps) + ')', fmtFps(v.fps) + ' fps', close(v.fps, src.video.fps) ? 'pass' : 'fail');
+  } else if (settings.fps === 'native' && src?.video && tf) {
+    add('Frame rate', fmtFps(tf.fps) + (tf.convertsFps ? ' fps' : ' (same as source)'), fmtFps(v.fps) + ' fps', close(v.fps, tf.fps) ? 'pass' : 'fail');
   } else if (settings.fps !== 'native') {
     add('Frame rate', fmtFps(+settings.fps) + ' fps', fmtFps(v.fps) + ' fps', close(v.fps, +settings.fps) ? 'pass' : 'fail');
   } else {

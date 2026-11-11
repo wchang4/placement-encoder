@@ -44,7 +44,7 @@
   <div class="panel"><h2>Options you might see</h2>
   <ul>
     <li><b>Add light grain</b> appears when your video has repeated frames (for example a held end card) or when the frame rate is being raised. It adds barely visible grain so a placement's checker does not see identical frames. Tick it for placements that reject repeats, such as Disney+.</li>
-    <li><b>Frame rate</b> is always kept as your video's own unless you change it. Changing it is a last resort: ask the editor for an export at the right frame rate instead.</li>
+    <li><b>Frame rate</b> is kept as your video's own when the placement accepts it. If not, the tool picks the closest rate the placement accepts. 30 to 29.97 (or 24 to 23.976) is done by playing every frame 0.1% slower, so nothing is dropped or repeated and nobody can see or hear the difference. Going down (for example 60 to 29.97) drops frames evenly. Only going up (for example 23.976 to 29.97) repeats frames; then light grain is switched on, and for placements that reject repeats (Disney+, Rogers) an export at the right rate from the editor is safer.</li>
     <li><b>Change the technical settings</b> or <b>Custom</b> show the settings for video professionals. Most people never need them.</li>
   </ul></div>
 

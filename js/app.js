@@ -5,7 +5,7 @@
 // Presets come from presets.json, so adding a placement needs no code changes.
 
 import { Engine } from './engine.js';
-import { buildArgs, targetFormat, spotLength } from './args.js';
+import { buildArgs, targetFormat, spotLength, outDuration } from './args.js';
 import { verify, overall, checkName } from './verify.js';
 import { measureAudio, scanVideo, scanDuplicates, grabFrames, describeBars, describeBlackEnds } from './analyze.js';
 import { planLeveling } from './level.js';
@@ -211,6 +211,7 @@ function defaultsFor(p) {
   const L = p.loudness || { mode: 'off' };
   return {
     ...JSON.parse(JSON.stringify(p.settings)),
+    allowedFps: p.spec?.allowedFps || null, // used when the frame rate is "native" (see targetFormat)
     loudMode: L.mode || 'off', loudTarget: L.targetDb ?? -14, loudPeak: L.peakDb ?? -1,
     // Grain is off by default; it is offered when the frame rate changes or repeats are found.
     noiseOn: false, noiseStrength: p.noise?.strength ?? state.config.grain?.strength ?? 4,
@@ -226,7 +227,9 @@ function presetSummary(p) {
   const lm = p.loudness?.mode;
   const vol = lm === 'max' ? ', with the volume checked against the placement\'s limits (turned down only if too loud)'
     : lm && lm !== 'off' ? ', with the volume set automatically to the placement\'s level' : '';
-  return `You'll get ${kind}, ${size}, at your video's own frame rate${vol}.`;
+  const af = p.spec?.allowedFps;
+  const rate = af?.length ? ` at your video's own frame rate if it is ${af.map(fmtFps).join(' or ')} fps (otherwise the closest of those)` : ` at your video's own frame rate`;
+  return `You'll get ${kind}, ${size},${rate}${vol}.`;
 }
 
 // Ticks changed: work out which files are needed. A file keeps its name and any
@@ -376,11 +379,9 @@ function computeWarnings() {
   if (t.scales) add(t.w > v.width ? 'warn' : 'info', `Resolution will be changed from ${v.width}x${v.height} to ${t.w}x${t.h}${t.w > v.width ? ' (upscaling reduces sharpness)' : ''}.`);
   if (spec.minShortEdge && Math.min(t.w, t.h) < spec.minShortEdge) add('warn', `The short edge is ${Math.min(t.w, t.h)} px; this placement wants at least ${spec.minShortEdge} px.`);
 
-  if (t.convertsFps) add('warn', `The frame rate will be changed from ${fmtFps(v.fps)} to ${fmtFps(t.fps)} fps. ` + (t.fps > v.fps
-    ? 'Going up repeats frames, which some placements (Disney+) reject even with grain.'
-    : 'Going down drops frames, so motion can look jerky.') + ` If you can, ask the editor for an export at ${fmtFps(t.fps)} fps instead.`);
-  if (spec.allowedFps && !spec.allowedFps.some(f => Math.abs(f - t.fps) / f < 0.001))
-    add('warn', `This placement accepts ${spec.allowedFps.map(fmtFps).join(', ')} fps, but the file would be ${fmtFps(t.fps)} fps. Best fix: ask the editor for an export at an accepted frame rate. (Changing it here is possible under "Change the technical settings", with grain.)`);
+  if (t.raises) add('warn', `The frame rate will be raised from ${fmtFps(v.fps)} to ${fmtFps(t.fps)} fps, which repeats some frames. Light grain is switched on to hide the repeats. Disney+ and Rogers may still reject a raised frame rate.`);
+  if (spec.allowedFps && !spec.allowedFps.some(f => Math.abs(f - t.fps) / f < 0.0005))
+    add('warn', `This placement accepts ${spec.allowedFps.map(fmtFps).join(', ')} fps, but the file would be ${fmtFps(t.fps)} fps because of the frame rate chosen under "Change the technical settings".`);
   if (v.cfrLikely === false) add('warn', 'The source looks like variable frame rate. The output is forced to constant frame rate, which can repeat or drop frames.');
   if (!['progressive', 'unknown', ''].includes(v.fieldOrder)) add('warn', `The source is interlaced (${v.fieldOrder}). This tool does not deinterlace. Deinterlace first for placements that need progressive.`);
   if (s.tagBt709 && v.colorSpace && v.colorSpace !== 'bt709') add('warn', `The source colour space is "${v.colorSpace}". Tagging the output BT.709 only changes the label, it does not convert the colours.`);
@@ -392,7 +393,7 @@ function computeWarnings() {
     add('warn', `The video bitrate (${s.bitrateKbps} kbps) is outside this placement's range (${spec.minKbps ?? 0} to ${spec.maxKbps ?? 'no limit'} kbps).`);
 
   // size estimate and memory guard
-  const est = estimateOutputBytes(s, t.w, t.h, t.fps, (spotLength(src.durationSec, t.fps, state.config.spotLengths)?.exactSec || src.durationSec) + (s.tailBlackSec > 0 ? s.tailBlackSec : 0));
+  const est = estimateOutputBytes(s, t.w, t.h, t.fps, (spotLength(outDuration(src, t), t.fps, state.config.spotLengths)?.exactSec || outDuration(src, t)) + (s.tailBlackSec > 0 ? s.tailBlackSec : 0));
   const estMB = est / 1048576, lim = state.config.limits;
   $('est').textContent = 'Estimated output: about ' + fmtBytes(est) + (s.vcodec === 'prores' ? ' (upper estimate)' : '');
   if (estMB >= lim.memoryBlockMB) add('bad', `The output is expected to be about ${fmtBytes(est)}. That is more than this browser tool can safely handle (limit ${lim.memoryBlockMB} MB) and the tab would likely crash. Use H.264, a shorter clip, or desktop encoding software.`, true);
@@ -442,7 +443,7 @@ function update() {
 function raisesFps(s = state.settings) {
   if (!state.src) return false;
   const t = targetFormat(s, state.src);
-  return t.convertsFps && t.fps > state.src.video.fps;
+  return t.raises;
 }
 
 function updateGrain() {
@@ -629,9 +630,13 @@ async function encodeOne(i, n, target) {
     ({ filter: audioFilter, info: levelInfo } = await planLeveling(engine, path, s, timer));
   }
 
-  const spot = spotLength(state.src.durationSec, targetFormat(s, state.src).fps, state.config.spotLengths);
+  const tfE = targetFormat(s, state.src);
+  const spot = spotLength(outDuration(state.src, tfE), tfE.fps, state.config.spotLengths);
   const { args, notes } = buildArgs(s, state.src, path, memName, { audioFilter, spot });
-  if (spot) notes.push(spotNote(spot, state.src.durationSec));
+  if (tfE.conform) notes.push(`Frame rate changed from ${fmtFps(state.src.video.fps)} to ${fmtFps(tfE.fps)} fps by playing every frame ${tfE.fps < state.src.video.fps ? '0.1% slower' : '0.1% faster'}: no frames dropped or repeated.`);
+  else if (tfE.lowers) notes.push(`Frame rate changed from ${fmtFps(state.src.video.fps)} to ${fmtFps(tfE.fps)} fps by dropping frames evenly.`);
+  else if (tfE.raises) notes.push(`Frame rate raised from ${fmtFps(state.src.video.fps)} to ${fmtFps(tfE.fps)} fps, which repeats some frames.`);
+  if (spot) notes.push(spotNote(spot, outDuration(state.src, tfE)));
   if (s.tailBlackSec > 0) notes.push(`${s.tailBlackSec} seconds of black and silence were added at the end.`);
   if (levelInfo) notes.push(levelInfo);
   if (s.noiseOn) notes.push(`Light grain was added (strength ${s.noiseStrength}).`);
@@ -796,15 +801,21 @@ function plainChecklist() {
   else add('ok', `Size is right (${v.width} x ${v.height}).`);
 
   // Length: close to a standard spot length = made exactly that long.
-  const spot = spotLength(src.durationSec, t.fps, state.config.spotLengths);
-  if (spot && (spot.cut || spot.pad)) add('ok', `Length is ${src.durationSec.toFixed(2)} seconds. The file will be made exactly ${spot.seconds} seconds.`, spot.cut ? `The last ${spot.cut.toFixed(2)} s will be cut.` : `The last frame will be held for ${spot.pad.toFixed(2)} s to fill the time.`);
+  const spot = spotLength(outDuration(src, t), t.fps, state.config.spotLengths);
+  if (spot && (spot.cut || spot.pad) && !(t.conform && Math.abs(spot.exactSec - outDuration(src, t)) < 0.02)) add('ok', `Length is ${src.durationSec.toFixed(2)} seconds. The file will be made exactly ${spot.seconds} seconds.`, spot.cut ? `The last ${spot.cut.toFixed(2)} s will be cut.` : `The last frame will be held for ${spot.pad.toFixed(2)} s to fill the time.`);
   else if (spot) add('ok', `Length is exactly ${spot.seconds} seconds.`);
   else add('info', `Length is ${src.durationSec.toFixed(1)} seconds. That is not close to a standard ${(state.config.spotLengths?.lengths || []).join(', ')} second spot, so it will be kept as it is.`);
   if (s.tailBlackSec > 0) add('ok', `${s.tailBlackSec} seconds of black and silence will be added at the end, as ${name} requires.`);
 
   // Frame rate
-  if (spec.allowedFps && !spec.allowedFps.some(f => Math.abs(f - v.fps) / f < 0.001))
-    add('warn', `Frame rate is ${fmtFps(v.fps)} fps. ${name} accepts ${spec.allowedFps.map(fmtFps).join(', ')} fps.`, 'Best fix: ask the editor for an export at an accepted frame rate. Changing it here creates repeated frames.');
+  if (t.conform) add('ok', `Frame rate is ${fmtFps(v.fps)} fps and will be changed to ${fmtFps(t.fps)} fps${t.autoFps ? `, which ${name} accepts` : ''}.`,
+    `Every frame is kept and played ${t.fps < v.fps ? '0.1% slower' : '0.1% faster'}, with the sound matched. Nothing is dropped or repeated, and the difference cannot be seen or heard.`);
+  else if (t.lowers) add('ok', `Frame rate is ${fmtFps(v.fps)} fps and will be lowered to ${fmtFps(t.fps)} fps${t.autoFps ? `, which ${name} accepts` : ''}.`,
+    'Frames are dropped evenly, so nothing repeats. Fast motion can look very slightly less smooth.');
+  else if (t.raises) add('warn', `Frame rate is ${fmtFps(v.fps)} fps and will be raised to ${fmtFps(t.fps)} fps${t.autoFps ? `, the closest rate ${name} accepts` : ''}.`,
+    'Raising the frame rate repeats some frames. Light grain is switched on to hide them. If the placement rejects repeated frames, ask the editor for an export at ' + fmtFps(t.fps) + ' fps.');
+  else if (spec.allowedFps && !spec.allowedFps.some(f => Math.abs(f - t.fps) / f < 0.0005))
+    add('warn', `Frame rate would be ${fmtFps(t.fps)} fps. ${name} accepts ${spec.allowedFps.map(fmtFps).join(', ')} fps.`, 'The frame rate was changed under "Change the technical settings". Set it back to "Keep native" to let the tool pick one.');
 
   // Sound
   if (!src.audio) add(spec.audioRequired ? 'bad' : 'info', spec.audioRequired ? `No sound: ${name} requires audio.` : 'This video has no sound.');
