@@ -13,6 +13,9 @@
 // "Cineplex" from "Cineplex: cinema pre-show", "Meta" from "Meta: Facebook and Instagram (unverified)"
 export const shortName = (p) => p.name.split(':')[0].replace(/\s*\([^)]*\)\s*$/, '').trim();
 
+// "CORUS" from "Corus: online video...", "LANDMARK" from "Landmark Cinemas: pre-show"
+const autoTag = (p) => (p.tile?.title || shortName(p)).split(/[\s\/]+/)[0].toUpperCase().replace(/[^A-Z0-9]/g, '');
+
 // "A", "A and B", "A, B and C" (duplicates removed)
 export function joinNames(names) {
   const u = [...new Set(names)];
@@ -33,7 +36,9 @@ export function buildGroups(config, ids) {
     const f = files[key] || {};
     if (members.length === 1) {
       const p = members[0];
-      out.push({ key, label: f.label ? `${f.label}` : p.name, tag: f.tag || '', members, preset: p });
+      // Every file needs its own name ending when several are made at once, so a placement
+      // without a "files" entry gets one from its name (CORUS, LANDMARK, CTV).
+      out.push({ key, label: f.label ? `${f.label}` : p.name, tag: f.tag || autoTag(p), members, preset: p });
       continue;
     }
     const lead = config.presets.find(p => p.id === f.settingsFrom) || members[0];
