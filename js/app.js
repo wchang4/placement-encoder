@@ -528,7 +528,7 @@ async function makeOne(f, i, target) {
 
     const extra = {};
     if (leveling) { prog.set(pre + 'checking the sound', null); extra.audio = await measureAudio(engine, memName); }
-    extra.video = await scanVideo(engine, memName, t.fps, S.cfg.strictness.dupDiffThreshold, s.vcodec === 'prores' ? 10 : 8, prog.timed(pre + 'checking every frame', f.desc.lengthSec));
+    if (s.dupCheck) extra.video = await scanVideo(engine, memName, t.fps, S.cfg.strictness.dupDiffThreshold, s.vcodec === 'prores' ? 10 : 8, prog.timed(pre + 'checking every frame', f.desc.lengthSec));
     prog.noEta(); prog.set(pre + 'checking the file', null);
     let data = await engine.takeOutput(memName);
     const blob = new Blob([data], { type: MIME[ext] }); data = null;

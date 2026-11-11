@@ -73,7 +73,7 @@ The entry with `"custom": true` is the Custom tile, where the person picks the s
 ### Other blocks in placements.json
 
 - `formats`: the file types the tool can make. `formatPreference` is the order tried, lightest first.
-- `encoding`: defaults (video and audio bitrate, sample rate, H.264 details, `sizeSafety` margin under size limits, `assumeLengthSec` before a video is loaded).
+- `encoding`: defaults (video and audio bitrate, sample rate, H.264 details, `sizeSafety` margin under size limits, `assumeLengthSec` before a video is loaded). Files at `quickPresetFromKbps` (10 Mbps) or more use the quicker `x264PresetQuick` setting, about twice as fast and identical at those bitrates.
 - `spotLengths`: standard lengths (6, 15, 30, 60). A video within `snapWithinSec` of one is made exactly that long, counted in frames like broadcast timecode (15 s at 29.97 fps is 450 frames, 00:00:15:00).
 - `strictness`: how the final report decides pass, look at, and fail. `limits`: memory warnings. `grain`: the light grain strength (4, tested; use even numbers).
 

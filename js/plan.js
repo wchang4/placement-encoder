@@ -184,14 +184,16 @@ export function fileSettings(file, cfg, custom = {}) {
     h264Profile: a.h264Profile || E.h264Profile, pixFmt: E.pixFmt,
     width: a.shortEdge ? Math.round(a.shortEdge * 16 / 9) : null, height: a.shortEdge || null, // targetFormat keeps the video's shape
     fps: 'native', allowedFps: a.frameRates,
-    bitrateMode: 'cbr', bitrateKbps: a.videoOut || E.videoKbps, x264Preset: E.x264Preset, bframes: E.bframes,
+    bitrateMode: 'cbr', bitrateKbps: a.videoOut || E.videoKbps, // Generous bitrates look the same with the quicker setting (about twice as fast);
+    // tight ones (Bell's 25 MB, Corus's 8 Mbps) keep the more careful one.
+    x264Preset: (a.videoOut || E.videoKbps) >= (E.quickPresetFromKbps ?? Infinity) ? (E.x264PresetQuick || E.x264Preset) : E.x264Preset, bframes: E.bframes,
     gopSeconds: E.gopSeconds, closedGop: E.closedGop, faststart: F.faststart, stripEditLists: F.stripEditLists,
     tagBt709: E.tagBt709, acodec: F.acodec, sampleRate: a.sampleRate, bitDepth: F.bitDepth || 16, channels: E.channels,
     audioKbps: a.audioOut || E.audioKbps,
     loudMode: a.loudness?.mode || 'off',
     loudTarget: a.loudness ? (a.loudness.mode === 'max' ? a.loudness.average : a.loudness.target) : -14,
     loudPeak: a.loudness?.peak ?? -1,
-    noiseOn: false, noiseStrength: cfg.grain?.strength ?? 4, dupCheck: true,
+    noiseOn: false, noiseStrength: cfg.grain?.strength ?? 4, dupCheck: false, // set in describeFile
     tailBlackSec: a.tailBlackSec || 0,
   };
   return Object.assign(s, custom);
@@ -298,6 +300,10 @@ export function describeFile(file, cfg, video, custom = {}) {
   if (a.maxSizeMB != null && estMB > a.maxSizeMB) warn(`The file is expected to be about ${fmtBytes(est)}, over ${a.by.size}'s ${a.maxSizeMB} MB limit.`);
   if (estMB >= lim.memoryBlockMB) bad(`The file would be about ${fmtBytes(est)}, more than this browser tool can safely make.`, 'Use a shorter video or desktop encoding software.');
   else if (estMB >= lim.memoryWarnMB) warn(`The file will be large (about ${fmtBytes(est)}).`, 'Close other tabs and programs first. It may fail on computers with 8 GB of memory.');
+  // Re-check every frame of the finished file only where it matters: placements that reject
+  // repeated frames or black bars, files with grain, and files with black added at the end.
+  // Elsewhere it would only add time.
+  if (custom.dupCheck == null) s.dupCheck = !!(a.noDuplicateFrames || a.noLetterbox || s.noiseOn || s.tailBlackSec);
   out.settings = s;
   return out;
 }

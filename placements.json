@@ -57,6 +57,8 @@
     "h264Profile": "high",
     "pixFmt": "yuv420p",
     "x264Preset": "fast",
+    "x264PresetQuick": "veryfast",
+    "quickPresetFromKbps": 10000,
     "bframes": 2,
     "gopSeconds": 0.5,
     "closedGop": true,
