@@ -135,7 +135,7 @@
       "name": "Rogers Sports & Media: digital video",
       "tile": {
         "title": "Rogers",
-        "sub": "Rep-booked and self-serve",
+        "sub": "Broadcast and self-serve",
         "color": "#da291c",
         "logo": ""
       },
@@ -438,7 +438,7 @@
       "name": "Disney+",
       "tile": {
         "title": "Disney+",
-        "sub": "Streaming (MP4)",
+        "sub": "Streaming",
         "color": "#113ccf",
         "logo": ""
       },
@@ -602,7 +602,7 @@
       "name": "Landmark Cinemas: pre-show",
       "tile": {
         "title": "Landmark",
-        "sub": "Cinema pre-show (MP4)",
+        "sub": "Cinema pre-show",
         "color": "#8a1c2b",
         "logo": ""
       },
@@ -896,76 +896,6 @@
       "loudness": {
         "mode": "off",
         "note": ""
-      }
-    },
-    {
-      "id": "universal",
-      "name": "General purpose MP4 (any other placement)",
-      "tile": {
-        "title": "General MP4",
-        "sub": "Any other placement",
-        "color": "#4f5866",
-        "logo": ""
-      },
-      "group": "More placements",
-      "file": "streaming",
-      "status": "unverified",
-      "verifiedDate": "",
-      "source": {
-        "label": "Generic values accepted by most ad platforms. Not a specific platform spec.",
-        "url": ""
-      },
-      "notes": [
-        "Starting point for any placement not listed. Edit any value to match the spec sheet you were given."
-      ],
-      "settings": {
-        "container": "mp4",
-        "vcodec": "h264",
-        "h264Profile": "high",
-        "proresProfile": "hq",
-        "pixFmt": "yuv420p",
-        "width": 1920,
-        "height": 1080,
-        "fps": "native",
-        "bitrateMode": "vbr",
-        "bitrateKbps": 15000,
-        "x264Preset": "fast",
-        "bframes": 2,
-        "gopSeconds": 0.5,
-        "closedGop": true,
-        "faststart": true,
-        "stripEditLists": true,
-        "tagBt709": true,
-        "acodec": "aac",
-        "sampleRate": 48000,
-        "bitDepth": 16,
-        "channels": 2,
-        "audioKbps": 320
-      },
-      "spec": {
-        "minKbps": 10000,
-        "maxKbps": 40000,
-        "allowedFps": null,
-        "aspect": null,
-        "minShortEdge": null,
-        "audioRequired": true,
-        "minAudioKbps": 192,
-        "maxSizeMB": null,
-        "maxDurationSec": null,
-        "h264ProfilesAllowed": [
-          "High",
-          "Main"
-        ],
-        "noLetterbox": false
-      },
-      "naming": {
-        "maxLength": null,
-        "allowedChars": null,
-        "note": ""
-      },
-      "loudness": {
-        "mode": "off",
-        "note": "Choose a loudness mode under Loudness if the spec asks for one. Quick picks are provided."
       }
     },
     {
