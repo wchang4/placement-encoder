@@ -626,7 +626,7 @@
       },
       "notes": [
         "Digital motion ads: MP4, H.264, 50 Mbps or higher, 24 or 23.976 fps, 1920 x 1080. This preset uses a constant 55 Mbps so simple scenes do not drop under the minimum.",
-        "Audio: the spec asks for uncompressed 48 kHz 16-bit WAV or AIFF, the same length as the spot. This preset puts high-quality AAC (320 kbps) inside the MP4. Ask Production@LandmarkCinemas.com whether they also want the sound as a separate WAV.",
+        "Audio: the sheet mentions uncompressed 48 kHz 16-bit WAV or AIFF; Landmark has confirmed that a separate WAV is not required. This preset puts high-quality AAC (320 kbps) inside the MP4.",
         "Audio level: the sheet says average 'higher than -12' with peaks not over -8. Read as the same limits as Cineplex (average no higher than -12 dB, peaks no higher than -8 dB). Confirm with Landmark.",
         "File name must follow LC-Client-SpotName-Duration-Language-Month, for example LC-CAA-TravelInsurance-30-ENG-Dec. Type it yourself.",
         "Text-safe area is 1724 x 972. Deliver through Landmark's WeTransfer page (landmarkcinemas.wetransfer.com).",

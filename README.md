@@ -82,4 +82,4 @@ Edit `presets.json` (or any file), then commit and push again. Browsers cache th
 - Single-threaded encoder, so encoding is slow (H.264 about 0.1 to 0.15x real time on a fast machine).
 - The finished file is held in memory before saving. About 0.8 GB and up is risky on 8 GB computers; about 1.5 GB and up is blocked.
 - The tool never crops or reframes. Vertical (9:16) files must be supplied.
-- All presets are currently UNVERIFIED. Known open questions: Cineplex average level (-12 vs -10 dB), the Disney+ "Main profile 4:2:2" contradiction, the Cineplex 8-bit vs 10-bit ProRes wording, whether Landmark wants the sound as a separate WAV, and how Landmark's "-12" audio wording should be read.
+- All presets are currently UNVERIFIED. Known open questions: Cineplex average level (-12 vs -10 dB), the Disney+ "Main profile 4:2:2" contradiction, the Cineplex 8-bit vs 10-bit ProRes wording, the Rogers self-serve specs (not yet checked against the RSM Ad Manager help pages), and how Landmark's "-12" audio wording should be read.
