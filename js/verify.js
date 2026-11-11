@@ -169,12 +169,13 @@ function fmtK(k) { return (k / 1000).toFixed(k % 1000 ? 1 : 0) + ' Mbps'; }
 
 // Returns null when the preset has no naming rule.
 export function checkName(fileName, naming) {
-  if (!fileName || !naming || (!naming.maxLength && !naming.allowedChars)) return null;
+  if (!fileName || !naming || (!naming.maxLength && !naming.allowedChars && !naming.pattern)) return null;
   const base = fileName.replace(/\.[^.]+$/, '');
   const problems = [];
   if (naming.maxLength && base.length > naming.maxLength) problems.push(`${base.length} characters`);
   if (naming.allowedChars && !new RegExp('^[' + naming.allowedChars + ']+$').test(base)) problems.push('has other characters');
-  const exp = [naming.maxLength ? `max ${naming.maxLength} characters` : null, naming.allowedChars ? 'letters and numbers only' : null].filter(Boolean).join(', ');
+  if (naming.pattern && !new RegExp(naming.pattern).test(base)) problems.push(`does not follow ${naming.patternLabel || 'the naming pattern'}`);
+  const exp = [naming.maxLength ? `max ${naming.maxLength} characters` : null, naming.allowedChars ? 'letters and numbers only' : null, naming.pattern ? (naming.patternLabel || 'naming pattern') : null].filter(Boolean).join(', ');
   return { ok: problems.length === 0, expected: exp, actual: problems.length ? problems.join(', ') : `${base.length} characters, OK` };
 }
 

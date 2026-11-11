@@ -26,7 +26,7 @@ Open `presets.json` in any text editor (Notepad is fine). The instructions are a
 3. Each preset has:
    - `settings`: what the form is filled with. Users can still change any of it on the page.
    - `spec`: what the report checks the finished file against (bitrate range, allowed frame rates, aspect, size and duration limits, `noLetterbox`).
-   - `naming`: file name rule (`maxLength`, `allowedChars`).
+   - `naming`: file name rule (`maxLength`, `allowedChars`, and optionally `pattern`, a regular expression the name must match, with `patternLabel` as the plain-language version, as used for Landmark).
    - `loudness`: `mode` is `off`, `lufs` (integrated loudness, as a target), `rms` (average level, as a target) or `max` (limits only: audio that is already quiet enough is left alone, louder audio is turned down; use this for specs worded "no higher than", such as Cineplex), with `targetDb` and `peakDb`.
    - `group`: a label for your own reference; every placement is shown in one grid, with versions of the same brand side by side. The preset with `"custom": true` is the Custom option, shown last.
    - `tile`: how the placement looks in step 2: `title`, a short `sub` line, an accent `color` (dark enough for white text) and an optional `logo` path, for example `"logos/cineplex.svg"`. See `logos/README.txt`. With no logo, the title is shown on a badge in the accent colour.
@@ -72,4 +72,4 @@ Edit `presets.json` (or any file), then commit and push again. Browsers cache th
 - Single-threaded encoder, so encoding is slow (H.264 about 0.1 to 0.15x real time on a fast machine).
 - The finished file is held in memory before saving. About 0.8 GB and up is risky on 8 GB computers; about 1.5 GB and up is blocked.
 - The tool never crops or reframes. Vertical (9:16) files must be supplied.
-- All presets are currently UNVERIFIED. Known open questions: Cineplex average level (-12 vs -10 dB), the Disney+ "Main profile 4:2:2" contradiction, the Cineplex 8-bit vs 10-bit ProRes wording, and the Landmark placeholder.
+- All presets are currently UNVERIFIED. Known open questions: Cineplex average level (-12 vs -10 dB), the Disney+ "Main profile 4:2:2" contradiction, the Cineplex 8-bit vs 10-bit ProRes wording, whether Landmark wants the sound as a separate WAV, and how Landmark's "-12" audio wording should be read.

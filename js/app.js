@@ -425,7 +425,7 @@ function update() {
   const evals = state.groups.map((g, i) => (i === state.active ? null : withGroup(g, evaluate)));
   evals[state.active] = evaluate();
   const w = evals[state.active].w;
-  if (n > 1) {
+  if (n > 1 && state.src) { // names are filled in once a video is dropped
     const names = state.groups.map((g, i) => (i === state.active ? currentFileName() : withGroup(g, currentFileName)).toLowerCase());
     const mine = names[state.active];
     if (names.filter(x => x === mine).length > 1) w.push({ level: 'bad', text: 'Another file has the same name. Give each file its own name so one does not replace the other.', block: true });

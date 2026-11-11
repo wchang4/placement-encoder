@@ -10,7 +10,7 @@
 // combined preset: settings from the file's "settingsFrom" preset (plus any
 // overrides), and a spec that keeps the strictest value of every member.
 
-// "Cineplex" from "Cineplex: cinema pre-show", "Landmark Cinemas" from "Landmark Cinemas (PLACEHOLDER)"
+// "Cineplex" from "Cineplex: cinema pre-show", "YouTube Shorts" from "YouTube Shorts (vertical, unverified)"
 export const shortName = (p) => p.name.split(':')[0].replace(/\s*\([^)]*\)\s*$/, '').trim();
 
 // "A", "A and B", "A, B and C" (duplicates removed)
@@ -81,13 +81,14 @@ function combine(key, f, lead, members) {
   if (spec.allowedAspects && !spec.allowedAspects.length) spec.allowedAspects = null;
 
   // File name: the strictest rule wins.
-  const rules = members.map(m => m.naming).filter(n => n && (n.maxLength || n.allowedChars));
+  const rules = members.map(m => m.naming).filter(n => n && (n.maxLength || n.allowedChars || n.pattern));
   let naming = null;
   if (rules.length) {
     const maxLength = Math.min(...rules.map(n => n.maxLength || Infinity));
     const chars = rules.map(n => n.allowedChars).filter(Boolean).sort((a, b) => a.length - b.length)[0] || null;
     const strictest = rules.slice().sort((a, b) => (a.maxLength || Infinity) - (b.maxLength || Infinity))[0];
-    naming = { maxLength: isFinite(maxLength) ? maxLength : null, allowedChars: chars, note: strictest.note || '' };
+    const pat = rules.find(n => n.pattern);
+    naming = { maxLength: isFinite(maxLength) ? maxLength : null, allowedChars: chars, pattern: pat?.pattern || null, patternLabel: pat?.patternLabel || '', note: (pat || strictest).note || '' };
   }
 
   // Safe-zone guides from every placement (same label only once).
