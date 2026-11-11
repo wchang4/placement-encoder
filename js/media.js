@@ -86,7 +86,7 @@ export function summarize(probe) {
     out.video = {
       codec: v.codec_name, profile: v.profile || '',
       width: v.width, height: v.height, sar: v.sample_aspect_ratio || '1:1',
-      fps, avgFps: avg,
+      fps, avgFps: avg, frames: +v.nb_frames || null,
       // r_frame_rate is the "base" rate; if the average differs it is probably variable
       cfrLikely: fps && avg ? Math.abs(fps - avg) / fps < 0.001 : null,
       fieldOrder: v.field_order || 'unknown',
@@ -99,7 +99,7 @@ export function summarize(probe) {
   if (a) {
     out.audio = {
       codec: a.codec_name, profile: a.profile || '',
-      sampleRate: +a.sample_rate, channels: a.channels,
+      sampleRate: +a.sample_rate, channels: a.channels, durationSec: +a.duration || null,
       kbps: a.bit_rate ? +a.bit_rate / 1000 : null,
       bitDepth: +a.bits_per_raw_sample || +a.bits_per_sample || null
     };

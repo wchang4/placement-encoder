@@ -26,6 +26,16 @@
     "dupWarnPercent": 5,
     "barTolerancePx": 4
   },
+  "spotLengths": {
+    "_note": "A video within snapWithinSec of one of these lengths (in seconds) is made exactly that long: cut if a little long, last frame held if a little short. Length is counted in frames, like broadcast timecode (6 s = 180 frames at 29.97 fps).",
+    "lengths": [
+      6,
+      15,
+      30,
+      60
+    ],
+    "snapWithinSec": 0.5
+  },
   "limits": {
     "_note": "Browser memory guard. Based on ONE test point (a 526 MB ProRes output worked, using about 2.3 GB of browser memory). Adjust after more testing.",
     "memoryWarnMB": 800,
@@ -140,7 +150,7 @@
       "notes": [
         "One spec for all Rogers digital video, including streaming TV.",
         "MP4, H.264, progressive, 1920 x 1080, 16:9. Total bitrate 10 to 40 Mbps.",
-        "23.98 fps accepted, 29.97 preferred. 6 to 15 seconds or 30 to 60 seconds.",
+        "23.98 fps accepted, 29.97 preferred. Spots of 6, 15, 30 or 60 seconds.",
         "No duplicate frames allowed. No slates or load plates.",
         "Audio AAC, 192 kbps or higher, 48 kHz, stereo. Loudness -24 LKFS (plus or minus 2), true peak no higher than -1 dB.",
         "Captions only through VAST 4.x, never burned in. Send 5 days before launch."
@@ -181,7 +191,7 @@
         "audioRequired": true,
         "minAudioKbps": 192,
         "maxSizeMB": null,
-        "maxDurationSec": 60,
+        "maxDurationSec": null,
         "h264ProfilesAllowed": null,
         "noLetterbox": false,
         "noDuplicateFrames": true
@@ -208,7 +218,7 @@
         "logo": ""
       },
       "group": "Main placements",
-      "file": "rogers-selfserve",
+      "file": "streaming",
       "status": "unverified",
       "verifiedDate": "",
       "source": {
@@ -216,10 +226,10 @@
         "url": "https://www.rogerssportsandmedia.com/adspecs/?filter1=Digital_Video"
       },
       "notes": [
-        "Self-serve rules: MP4, 1920 x 1080, 16:9, 23.976 or 29.97 fps, 10 to 30 seconds, max 85 MB. The exact length depends on the placement you book.",
+        "Self-serve rules: MP4, 1920 x 1080, 16:9, 23.976 or 29.97 fps, max 85 MB. Self-serve takes spots of 10 to 30 seconds; the exact length depends on the placement you book.",
         "The self-serve list does not cover bitrate or audio, so the main Rogers spec is used for those: 10 to 40 Mbps, AAC 192 kbps or higher at 48 kHz, -24 LKFS with true peak no higher than -1 dB, no duplicate frames.",
-        "This preset uses a constant 15 Mbps, so a 30 second spot is about 60 MB, well under 85 MB.",
-        "Confirm with Rogers whether the self-serve platform also checks loudness and duplicate frames."
+        "Confirm with Rogers whether the self-serve platform also checks loudness and duplicate frames.",
+        "On its own this preset uses a constant 15 Mbps. Shared with other streaming placements, the file is a constant 18 Mbps, so a 30 second spot is about 70 MB."
       ],
       "settings": {
         "container": "mp4",
@@ -257,11 +267,11 @@
         "audioRequired": true,
         "minAudioKbps": 192,
         "maxSizeMB": 85,
-        "maxDurationSec": 30,
+        "maxDurationSec": null,
         "h264ProfilesAllowed": null,
         "noLetterbox": false,
         "noDuplicateFrames": true,
-        "minDurationSec": 10
+        "minDurationSec": null
       },
       "naming": {
         "maxLength": null,
@@ -336,7 +346,7 @@
         "audioRequired": true,
         "minAudioKbps": null,
         "maxSizeMB": 25,
-        "maxDurationSec": 30,
+        "maxDurationSec": null,
         "h264ProfilesAllowed": [
           "High",
           "Main"
@@ -414,7 +424,7 @@
         "audioRequired": false,
         "minAudioKbps": null,
         "maxSizeMB": 510,
-        "maxDurationSec": 30,
+        "maxDurationSec": null,
         "h264ProfilesAllowed": null,
         "noLetterbox": false
       },
@@ -807,7 +817,7 @@
         "audioRequired": true,
         "minAudioKbps": null,
         "maxSizeMB": 500,
-        "maxDurationSec": 30,
+        "maxDurationSec": null,
         "h264ProfilesAllowed": null,
         "allowedAspects": [
           "9:16",
@@ -953,7 +963,7 @@
         "audioRequired": true,
         "minAudioKbps": null,
         "maxSizeMB": null,
-        "maxDurationSec": 180,
+        "maxDurationSec": null,
         "h264ProfilesAllowed": null
       },
       "naming": {
@@ -1033,7 +1043,7 @@
         "audioRequired": true,
         "minAudioKbps": null,
         "maxSizeMB": 4096,
-        "maxDurationSec": 90,
+        "maxDurationSec": null,
         "h264ProfilesAllowed": null
       },
       "naming": {
@@ -1200,10 +1210,13 @@
       "tag": "STREAM",
       "settingsFrom": "amazon-prime",
       "settings": {
-        "audioKbps": 320
+        "audioKbps": 320,
+        "bitrateMode": "cbr",
+        "bitrateKbps": 18000
       },
       "notes": [
-        "Audio is 320 kbps so it also meets YouTube's recommendation."
+        "Audio is 320 kbps so it also meets YouTube's recommendation.",
+        "The video is a constant 18 Mbps: inside every placement's range, and a 30 second spot (about 70 MB) stays under the Rogers self-serve limit of 85 MB."
       ]
     },
     "ctv": {
@@ -1215,11 +1228,6 @@
       "label": "Vertical 9:16 (MP4)",
       "tag": "VERT",
       "settingsFrom": "youtube-shorts"
-    },
-    "rogers-selfserve": {
-      "label": "Rogers self-serve (MP4, under 85 MB)",
-      "tag": "RSM",
-      "settingsFrom": "rogers-selfserve"
     }
   }
 }

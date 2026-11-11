@@ -31,7 +31,6 @@ Open `presets.json` in any text editor (Notepad is fine). The instructions are a
    - `group`: a label for your own reference; every placement is shown in one grid, with versions of the same brand side by side. The preset with `"custom": true` is the Custom option, shown last.
    - `tile`: how the placement looks in step 2: `title`, a short `sub` line, an accent `color` (dark enough for white text) and an optional `logo` path, for example `"logos/cineplex.svg"`. See `logos/README.txt`. With no logo, the title is shown on a badge in the accent colour.
    - `file` (optional): placements with the same `file` value share ONE file. The top-level `files` block names each shared file (`label`, a short `tag` added to the file name) and says which preset's settings it is made with (`settingsFrom`, plus optional `settings` overrides). The shared file is checked against the strictest rule of every placement in it. Remove a placement's `file` line to give it its own file.
-   - `spec.minDurationSec`: shortest length the placement accepts (Rogers self-serve: 10). `spec.maxDurationSec` is the longest.
    - `spec.barsAllowed`: `true` when the placement is known to accept black bars (Cineplex). The check then shows bars as information instead of a warning. `spec.noLetterbox: true` makes bars a problem.
    - `spec.noDuplicateFrames`: `true` for placements known to reject repeated frames (Disney+). The check then treats repeats as a problem instead of information.
    - Grain (duplicate-frame prevention) is off by default and offered by the page when needed. Its strength is the top-level `grain.strength` (4, tested). Use even numbers only: 1 does nothing and 3 and 5 proved unreliable. A preset can override it with `"noise": {"strength": 6}`.
@@ -42,6 +41,8 @@ Open `presets.json` in any text editor (Notepad is fine). The instructions are a
 7. Save, reload the page (Ctrl+F5). A typo (missing comma or quote) makes the page say it could not read presets.json. Paste the file into https://jsonlint.com to find the error. That page is only a text checker, but do not paste anything confidential.
 
 The `strictness` block sets how PASS / WARN / FAIL are decided, and `limits` sets the memory warnings.
+
+The `spotLengths` block lists the standard spot lengths (6, 15, 30 and 60 seconds). A video within `snapWithinSec` (0.5 s) of one of them is made exactly that long: a little extra is cut, and if it is a little short the last frame is held with silence. Length is counted in frames, the way broadcast timecode counts it, so 6 seconds at 29.97 fps is 180 frames (6.006 s on a clock), and at 25 or 30 fps it is exactly 6.000 s. Placement length limits are not checked.
 
 ## Deploying to GitHub Pages
 

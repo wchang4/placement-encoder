@@ -135,7 +135,18 @@ export function verify(summary, settings, preset, opts) {
   }
 
   // 13. Duration
-  if (src && src.durationSec) {
+  if (opts.spot) {
+    // Made to a standard spot length: check it against the exact frame count.
+    const sp = opts.spot, frames = summary.video?.frames;
+    const d = Math.abs(summary.durationSec - sp.exactSec);
+    const ok = frames ? frames === sp.frames : d < 0.5 / (summary.video?.fps || 30);
+    add('Duration', `${sp.seconds} s exactly (${sp.frames} frames)`, summary.durationSec.toFixed(3) + ' s' + (frames ? `, ${frames} frames` : ''),
+      ok ? 'pass' : d <= st.durationToleranceSec ? 'warn' : 'fail');
+    // The sound must run the full length too. AAC, and the browser's own probe, add up to
+    // about a tenth of a second, so only a real gap fails.
+    const ad = summary.audio?.durationSec;
+    if (ad) add('Sound length', 'same as the picture', ad.toFixed(3) + ' s', Math.abs(ad - sp.exactSec) <= 0.15 ? 'pass' : 'fail');
+  } else if (src && src.durationSec) {
     const d = Math.abs(summary.durationSec - src.durationSec);
     add('Duration', src.durationSec.toFixed(2) + ' s (same as source)', summary.durationSec.toFixed(2) + ' s',
       d <= st.durationToleranceSec ? 'pass' : d <= 0.5 ? 'warn' : 'fail');

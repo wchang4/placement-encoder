@@ -5,7 +5,7 @@
 // Presets come from presets.json, so adding a placement needs no code changes.
 
 import { Engine } from './engine.js';
-import { buildArgs, targetFormat } from './args.js';
+import { buildArgs, targetFormat, spotLength } from './args.js';
 import { verify, overall, checkName } from './verify.js';
 import { measureAudio, scanVideo, scanDuplicates, grabFrames, describeBars, describeBlackEnds } from './analyze.js';
 import { planLeveling } from './level.js';
@@ -398,7 +398,7 @@ function computeWarnings() {
     add('warn', `The video bitrate (${s.bitrateKbps} kbps) is outside this placement's range (${spec.minKbps ?? 0} to ${spec.maxKbps ?? 'no limit'} kbps).`);
 
   // size estimate and memory guard
-  const est = estimateOutputBytes(s, t.w, t.h, t.fps, src.durationSec);
+  const est = estimateOutputBytes(s, t.w, t.h, t.fps, spotLength(src.durationSec, t.fps, state.config.spotLengths)?.exactSec || src.durationSec);
   const estMB = est / 1048576, lim = state.config.limits;
   $('est').textContent = 'Estimated output: about ' + fmtBytes(est) + (s.vcodec === 'prores' ? ' (upper estimate)' : '');
   if (estMB >= lim.memoryBlockMB) add('bad', `The output is expected to be about ${fmtBytes(est)}. That is more than this browser tool can safely handle (limit ${lim.memoryBlockMB} MB) and the tab would likely crash. Use H.264, a shorter clip, or desktop encoding software.`, true);
@@ -628,7 +628,9 @@ async function encodeOne(i, n, target) {
     ({ filter: audioFilter, info: levelInfo } = await planLeveling(engine, path, s, timer));
   }
 
-  const { args, notes } = buildArgs(s, state.src, path, memName, { audioFilter });
+  const spot = spotLength(state.src.durationSec, targetFormat(s, state.src).fps, state.config.spotLengths);
+  const { args, notes } = buildArgs(s, state.src, path, memName, { audioFilter, spot });
+  if (spot) notes.push(spotNote(spot, state.src.durationSec));
   if (levelInfo) notes.push(levelInfo);
   if (s.noiseOn) notes.push(`Light grain was added (strength ${s.noiseStrength}).`);
   await engine.encode(args, timedProgress(label('Encoding video'), dur));
@@ -656,8 +658,16 @@ async function encodeOne(i, n, target) {
 
   hideProgress();
   const source = { ...state.src, dupPercent: state.analysis?.video?.dups?.percent, conversion: state.analysis?.video?.dups?.conversion };
-  const rows = verify(outSummary, s, state.preset, { source, fileName: outFile, strictness: state.config.strictness, extra });
+  const rows = verify(outSummary, s, state.preset, { source, fileName: outFile, strictness: state.config.strictness, extra, spot });
   showResult((n > 1 ? `File ${i + 1} of ${n}: ` : 'Encoded: ') + outFile, rows, notes, saved.note, saved.url ? { url: saved.url, name: outFile } : null);
+}
+
+// Plain-language line about trimming or padding to a standard spot length.
+function spotNote(spot, srcSec) {
+  const base = `Made exactly ${spot.seconds} seconds (${spot.frames} frames).`;
+  if (spot.cut) return `${base} The video was ${srcSec.toFixed(2)} s, so the last ${spot.cut.toFixed(2)} s was cut.`;
+  if (spot.pad) return `${base} The video was ${srcSec.toFixed(2)} s, so the last frame was held for ${spot.pad.toFixed(2)} s, with silence.`;
+  return base;
 }
 
 // A progress callback for a pass that reports "seconds of video done".
@@ -786,12 +796,11 @@ function plainChecklist() {
   else if (t.scales) add('ok', `Shape is right. The picture will be resized from ${v.width} x ${v.height} to ${t.w} x ${t.h}.`, t.w > v.width ? 'Making a picture bigger than the original can look slightly soft.' : '');
   else add('ok', `Shape and size are right (${v.width} x ${v.height}).`);
 
-  // Length
-  if (spec.maxDurationSec && src.durationSec > spec.maxDurationSec + st.durationToleranceSec)
-    add('bad', `Too long: ${src.durationSec.toFixed(1)} seconds. ${spec.maxDurationBy || name} allows up to ${spec.maxDurationSec} seconds.`, 'Ask for a shorter cut.');
-  if (spec.minDurationSec && src.durationSec < spec.minDurationSec - st.durationToleranceSec)
-    add('bad', `Too short: ${src.durationSec.toFixed(1)} seconds. ${spec.minDurationBy || name} needs at least ${spec.minDurationSec} seconds.`, 'Ask for a longer cut.');
-  else add('ok', `Length is ${src.durationSec.toFixed(1)} seconds.`);
+  // Length: close to a standard spot length = made exactly that long.
+  const spot = spotLength(src.durationSec, t.fps, state.config.spotLengths);
+  if (spot && (spot.cut || spot.pad)) add('ok', `Length is ${src.durationSec.toFixed(2)} seconds. The file will be made exactly ${spot.seconds} seconds.`, spot.cut ? `The last ${spot.cut.toFixed(2)} s will be cut.` : `The last frame will be held for ${spot.pad.toFixed(2)} s to fill the time.`);
+  else if (spot) add('ok', `Length is exactly ${spot.seconds} seconds.`);
+  else add('info', `Length is ${src.durationSec.toFixed(1)} seconds. That is not close to a standard ${(state.config.spotLengths?.lengths || []).join(', ')} second spot, so it will be kept as it is.`);
 
   // Frame rate
   if (spec.allowedFps && !spec.allowedFps.some(f => Math.abs(f - v.fps) / f < 0.001))
@@ -807,7 +816,7 @@ function plainChecklist() {
     else add('ok', `Sound is within ${name}'s volume limits, so it will be left as it is.`,
       `Average ${a.audio.rms.toFixed(1)} dB (limit ${s.loudTarget}), peak ${a.audio.samplePeak.toFixed(1)} dB (limit ${s.loudPeak}).`);
   }
-  else if (s.loudMode !== 'off') add('ok', `Sound found. The volume will be set automatically to ${name}'s level.`);
+  else if (s.loudMode !== 'off') add('ok', s.loudMode === 'lufs' ? `Sound found. The volume will be set automatically to ${s.loudTarget} LKFS, peaks no higher than ${s.loudPeak} dB.` : `Sound found. The volume will be set automatically to ${name}'s level.`);
   else add('ok', 'Sound found. The volume will be left as it is.');
 
   // Repeated frames

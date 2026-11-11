@@ -15,6 +15,21 @@ export function targetFormat(settings, src) {
   return { w, h, fps, convertsFps, scales };
 }
 
+// Standard spot lengths: a video that is close to 6, 15, 30 or 60 seconds is made
+// exactly that long. Length is counted in frames, the way broadcast timecode counts it:
+// 6 s is 180 frames at 29.97 fps (timecode 00:00:06:00) and 144 frames at 23.976.
+// Returns null when the video is not close to a standard length (it is then kept as is).
+export function spotLength(durationSec, fps, cfg) {
+  if (!cfg || !cfg.lengths?.length || !(durationSec > 0) || !(fps > 0)) return null;
+  const within = cfg.snapWithinSec ?? 0.5;
+  const L = cfg.lengths.slice().sort((a, b) => Math.abs(a - durationSec) - Math.abs(b - durationSec))[0];
+  if (Math.abs(L - durationSec) > within) return null;
+  const frames = Math.round(L * Math.round(fps));
+  const exactSec = frames / fps;
+  const diff = durationSec - exactSec;
+  return { seconds: L, frames, exactSec, cut: diff > 0.0005 ? diff : 0, pad: diff < -0.0005 ? -diff : 0 };
+}
+
 // Returns { args, notes }. inPath is the mounted source, outName the file the
 // encoder will create in its own memory.
 export function buildArgs(settings, src, inPath, outName, opts = {}) {
@@ -31,6 +46,9 @@ export function buildArgs(settings, src, inPath, outName, opts = {}) {
   // Optional light noise layer for duplicate-frame prevention: temporal (changes on
   // every frame) and uniform. Applied after any scaling or frame rate change so every
   // output frame gets different noise.
+  // A video slightly shorter than its spot length gets its last frame held.
+  const spot = opts.spot || null;
+  if (spot && spot.pad) vf.push(`tpad=stop_mode=clone:stop_duration=${(spot.pad + 0.2).toFixed(3)}`);
   if (s.noiseOn) vf.push(`noise=alls=${Math.round(s.noiseStrength)}:allf=t+u`);
   // Colour labels must also be set on the frames themselves: the -colorspace options
   // alone left ProRes files with "unknown" primaries/transfer when the source was untagged.
@@ -83,7 +101,9 @@ export function buildArgs(settings, src, inPath, outName, opts = {}) {
     } else {
       args.push('-c:a', 'aac', '-b:a', Math.round(s.audioKbps) + 'k');
     }
-    if (opts.audioFilter) args.push('-af', opts.audioFilter);
+    // Silence fills any gap at the end, so the sound is exactly as long as the picture.
+    const af = [opts.audioFilter, spot ? 'apad' : null].filter(Boolean).join(',');
+    if (af) args.push('-af', af);
     args.push('-ar', String(s.sampleRate), '-ac', String(s.channels));
   } else {
     args.push('-an');
@@ -95,7 +115,11 @@ export function buildArgs(settings, src, inPath, outName, opts = {}) {
   args.push('-write_tmcd', '0'); // do not copy the timecode track
   // Keep the file exactly as long as the source. Leveling and AAC can add a few
   // hundredths of a second of audio, which pushed a 30.03 s spot over a 30 s limit.
-  if (src.durationSec > 0) args.push('-t', src.durationSec.toFixed(3));
+  // A standard spot is cut to an exact number of frames. Only -t is used: -frames:v
+  // closed the file as soon as the last picture was written, while the sound leveling
+  // was still about 3 s behind, which cut the audio short (tested).
+  if (spot) args.push('-t', spot.exactSec.toFixed(6));
+  else if (src.durationSec > 0) args.push('-t', src.durationSec.toFixed(3));
   args.push('-y', outName);
   return { args, notes };
 }
