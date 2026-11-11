@@ -3,76 +3,78 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Placement Encoder: User Guide</title>
+<title>How it works</title>
+<script>try { const t = localStorage.getItem('pe-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<link rel="stylesheet" href="css/app.css">
 <style>
-  :root{--bg:#13161b;--surface:#1b2027;--surface-2:#232933;--text:#f1f3f6;--text-dim:#9aa5b1;--accent:#e8a33d;
-    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Helvetica,Arial,sans-serif;}
-  *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.55;padding:32px 24px 60px;}
-  .wrap{max-width:820px;margin:0 auto;}
-  h1{font-size:24px;margin:0 0 4px;}
-  .eyebrow{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin:0 0 8px;}
-  .panel{background:var(--surface);border-radius:14px;padding:18px 22px;margin:16px 0;}
-  h2{font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-dim);margin:0 0 10px;}
-  ol,ul{margin:0;padding-left:20px;} li{margin:4px 0;}
-  a{color:var(--accent);} b{font-weight:600;}
-  .dim{color:var(--text-dim);}
+  .guide { max-width: 760px; }
+  .guide .step ol, .guide .step ul { margin: 0; padding-left: 22px; display: grid; gap: 8px; }
+  .guide .step p { margin: 0 0 10px; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <p class="eyebrow">CAA NEO · Creative Services</p>
-  <h1>Placement Encoder: quick guide</h1>
-  <p class="dim">Turns one finished video into a file that matches a placement's technical spec, and checks the result. Your video never leaves your computer. <a href="index.html">Open the tool</a></p>
+<div class="wrap guide">
+  <header class="top">
+    <div>
+      <h1>How it works</h1>
+      <p class="lede">The Placement Encoder turns one finished ad into a file for every placement it is running on, and checks each file against that placement's spec sheet. Your video never leaves your computer. <a href="index.html">Open the encoder</a></p>
+    </div>
+  </header>
 
-  <div class="panel"><h2>Use it in four steps</h2>
-  <ol>
-    <li><b>Drop your finished video</b> (MOV or MP4, one file) on the box. The first visit downloads the encoder (about 31 MB, once). The tool then checks your video automatically (about a minute for a 15 s ad) and lists anything a placement could reject, in plain words.</li>
-    <li><b>Click every placement it is going to</b>, for example Cineplex, Crave / Bell Media, Amazon, Disney+ and YouTube. Placements that take the same file are grouped, so the page shows how many files you need (often 2 or 3 for a whole campaign). Each file has a card: click a card to see its check list and settings.</li>
-    <li><b>Check each file's name</b> (including any language letter the placement wants). Each file gets the video's name plus a short tag such as _STREAM. Red or orange messages tell you what will go wrong before you wait.</li>
-    <li><b>Click "Make the file" (or "Make the 3 files").</b> In Edge or Chrome you choose where to save first: a file name for one file, or a folder for several. The files are made one after another. Keep the tab open and in front. Each file gets a one-line verdict and a list of anything to look at.</li>
-  </ol></div>
+  <section class="step">
+    <h2><span class="n">1</span>Drop your video</h2>
+    <p>Drop the finished MOV or MP4 on the box. The first visit downloads the encoder (about 31 MB, once). The tool then looks at your video for about a minute: its length, frame rate, sound level, repeated frames and black bars. It shows what it found without judging anything yet, because that depends on where the ad is going.</p>
+  </section>
 
-  <div class="panel"><h2>Which placements share a file</h2>
-  <ul>
-    <li><b>Cinema master (ProRes MOV):</b> Cineplex pre-show.</li>
-    <li><b>Streaming and online (MP4, high quality):</b> Amazon Prime Video, Disney+, Rogers (broadcast and self-serve, one file) and YouTube. It is a constant 18 Mbps, so a 30 second spot stays under the 85 MB self-serve limit. If Rogers is in it, the sound is set to -24 LKFS for everyone in the file.</li>
-    <li><b>Connected TV, small file (MP4, under 25 MB):</b> Crave / Bell Media (Crave, CTV app, Noovo, TSN).</li>
-    <li>Landmark, Corus, Spotify, Meta and CTV local stations each get their own file. The CTV local file has 10 seconds of black added at the end. A shared file is checked against the strictest rule of every placement in it, and the check names the placement that sets the rule (for example "Disney+ does not allow black bars").</li>
-  </ul></div>
+  <section class="step">
+    <h2><span class="n">2</span>Choose where it's going</h2>
+    <p>Click every placement the ad is running on. You can do this while the video is still being checked.</p>
+  </section>
 
-  <div class="panel"><h2>Options you might see</h2>
-  <ul>
-    <li><b>Add light grain</b> appears when your video has repeated frames (for example a held end card) or when the frame rate is being raised. It adds barely visible grain so a placement's checker does not see identical frames. Tick it for placements that reject repeats, such as Disney+.</li>
-    <li><b>Frame rate</b> is kept as your video's own when the placement accepts it. If not, the tool picks the closest rate the placement accepts. 30 to 29.97 (or 24 to 23.976) is done by playing every frame 0.1% slower, so nothing is dropped or repeated and nobody can see or hear the difference. Going down (for example 60 to 29.97) drops frames evenly. Only going up (for example 23.976 to 29.97) repeats frames; then light grain is switched on, and for placements that reject repeats (Disney+, Rogers) an export at the right rate from the editor is safer.</li>
-    <li><b>Change the technical settings</b> or <b>Custom</b> show the settings for video professionals. Most people never need them.</li>
-  </ul></div>
+  <section class="step">
+    <h2><span class="n">3</span>Check your files, then make them</h2>
+    <p>The tool works out the fewest files that cover your placements. Placements whose rules overlap share one file; for example Rogers, Prime Video and YouTube all take the same MP4. A placement gets its own file only when its rules clash with the others (Corus has a lower bitrate limit, CTV stations want 10 seconds of black at the end, Cineplex wants a ProRes master).</p>
+    <p>Each file gets one slip with everything about it:</p>
+    <ul>
+      <li><b>The timecode</b> is the file's exact length. Spots close to 6, 15, 30 or 60 seconds are made exactly that long.</li>
+      <li><b>The tool will</b> lists what it changes for you: frame rate, length, sound level, black at the end.</li>
+      <li><b>You need to</b> lists only what a person has to do, such as typing a name the placement requires or asking the editor for a new export.</li>
+      <li><b>File name</b>: Cineplex, CTV and Landmark have naming rules, shown under the box.</li>
+    </ul>
+    <p>Click <b>Make the files</b>. In Edge or Chrome you choose where to save first. Keep the tab open and in front. Each slip then shows whether its file passed the check, with a full report underneath.</p>
+  </section>
 
-  <div class="panel"><h2>Reading the result</h2>
-  <ul>
-    <li><b>Ready</b>: the file matches the placement's published spec. <b>Things to look at</b>: probably fine, but read the notes. <b>Problems found</b>: fix them and make the file again, or ask the placement.</li>
-    <li>This is a <b>technical check</b>, not a guarantee. Placements can still reject a file for content reasons.</li>
-    <li>Placements marked <b>SPEC NOT YET CONFIRMED</b> come from research and have not been confirmed with the placement. Check against the spec sheet you were given.</li>
-    <li>"Only check my video" tests your original file without making a new one. "Full technical report" shows every value.</li>
-  </ul></div>
+  <section class="step">
+    <h2>Frame rates</h2>
+    <ul>
+      <li>Your video's own frame rate is kept when the placement accepts it. If not, the tool picks the closest rate the placement accepts.</li>
+      <li>30 to 29.97 (or 24 to 23.976) plays every frame 0.1% slower. Nothing is dropped or repeated, and nobody can see or hear it.</li>
+      <li>Going down (60 to 29.97, 30 to 24) drops frames evenly. 60 to 30 is smooth; 30 to 24 can look slightly jerky, and the slip says so.</li>
+      <li>Going up (23.976 to 29.97) repeats frames, so light grain is added to hide them. Rogers and Disney+ may still reject it; an export at the right rate is safer.</li>
+    </ul>
+  </section>
 
-  <div class="panel"><h2>Things the tool cannot fix</h2>
-  <ul>
-    <li><b>Black bars (letterbox)</b> and slates or countdowns: fix in the edit.</li>
-    <li><b>Audio too quiet for a loudness target</b>: the tool limits peaks but does not compress, so a very dynamic mix can fall short of a target. The report shows the real number. (Cineplex sets limits rather than a target, so quieter audio is simply left as it is.)</li>
-    <li><b>A video converted from another frame rate</b> (the check says "a repeated frame every few frames"): grain hides the exact repeats, but Disney+ and others may still reject the stutter. Ask the editor for an export at the original frame rate.</li>
-  </ul></div>
+  <section class="step">
+    <h2>What the tool cannot fix</h2>
+    <ul>
+      <li>Black bars around the picture, slates and countdowns: fix these in the edit.</li>
+      <li>A video already converted from another frame rate (the slip says "a repeated frame every few frames"): ask the editor for an export at the original rate.</li>
+      <li>Captions and described video: these come from a captioning or post-production vendor.</li>
+      <li>Very dynamic sound that cannot reach a loudness target without compression: the report shows the real level.</li>
+    </ul>
+  </section>
 
-  <div class="panel"><h2>If something goes wrong</h2>
-  <ul>
-    <li><b>Slow:</b> normal. A 30 s HD clip can take several minutes. The progress bar shows time left once it has data.</li>
-    <li><b>"Out of memory" or the tab crashes:</b> close other tabs and programs. Choose a placement that uses MP4 instead of ProRes for long clips. Large ProRes outputs (over about 0.8 GB) may fail on 8 GB computers.</li>
-    <li><b>Stuck or wrong?</b> Press Cancel, reload the page, and try again. Nothing is saved from a cancelled job.</li>
-    <li><b>Use Edge or Chrome.</b> Firefox and Safari are untested.</li>
-    <li>Spec looks wrong or out of date? Tell the person who maintains the tool; presets are edited in <code>presets.json</code>.</li>
-  </ul></div>
+  <section class="step">
+    <h2>If something goes wrong</h2>
+    <ul>
+      <li><b>Slow:</b> normal. A 30 s HD ad can take a few minutes per file; ProRes takes longest.</li>
+      <li><b>Out of memory, or the tab closes:</b> close other tabs and programs and try again.</li>
+      <li><b>Use Edge or Chrome.</b> Firefox and Safari have not been tested.</li>
+      <li><b>A spec looks wrong or out of date:</b> tell whoever looks after the tool. Placements live in <code>placements.json</code>, and the <a href="check.html">placement list check</a> shows where a new or changed spec fits.</li>
+    </ul>
+  </section>
 
-  <p class="dim">Review AI-assisted or tool-produced files before sending them to a placement or member-facing channel, as with any deliverable.</p>
+  <p class="hint">A passing check means the file matches the published spec. It is not a guarantee: a placement can still reject an ad for other reasons. Have someone review every file before it is sent.</p>
 </div>
 </body>
 </html>

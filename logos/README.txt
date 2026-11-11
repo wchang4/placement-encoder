@@ -1,10 +1,11 @@
-Placement logos for step 2 of the tool.
+Placement logos for the tiles in step 2 of the tool.
 
 1. Get each logo from the placement's own media kit or brand page (ask the sales rep).
-   Use the version meant for dark backgrounds (white or light logo) if there is one.
+   The page has a light and a dark mode, so a full-colour logo on a transparent
+   background that reads on both works best.
 2. Save it here, named after the placement, for example cineplex.svg or disney-plus.png.
    SVG or PNG, transparent background, about 300 px wide is plenty.
-3. In presets.json, put the path in that placement's "tile" block:
+3. In placements.json, put the path in that placement's "tile" block:
    "logo": "logos/cineplex.svg"
 4. Save, commit and push. If a logo file is missing, the tile shows the name instead.
 

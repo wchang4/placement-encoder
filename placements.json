@@ -1,0 +1,702 @@
+{
+  "_readme": [
+    "placements.json: every placement the tool knows, and what each one ACCEPTS (copied from its spec sheet).",
+    "The tool works out the files itself: placements whose rules overlap share one file. There is nothing to group by hand.",
+    "To add a placement, copy one entry, change it to match the new spec sheet, then open check.html to see which file it joins.",
+    "Field reference: see README.md, \"Placement fields\"."
+  ],
+  "formats": {
+    "mp4-h264": {
+      "label": "MP4 (H.264)",
+      "container": "mp4",
+      "vcodec": "h264",
+      "acodec": "aac",
+      "faststart": true,
+      "stripEditLists": true
+    },
+    "mov-h264": {
+      "label": "MOV (H.264)",
+      "container": "mov",
+      "vcodec": "h264",
+      "acodec": "aac",
+      "faststart": true,
+      "stripEditLists": false
+    },
+    "mov-prores-422": {
+      "label": "ProRes 422 MOV",
+      "container": "mov",
+      "vcodec": "prores",
+      "proresProfile": "422",
+      "acodec": "pcm",
+      "bitDepth": 16,
+      "faststart": false,
+      "stripEditLists": false
+    },
+    "mov-prores-hq": {
+      "label": "ProRes 422 HQ MOV",
+      "container": "mov",
+      "vcodec": "prores",
+      "proresProfile": "hq",
+      "acodec": "pcm",
+      "bitDepth": 16,
+      "faststart": false,
+      "stripEditLists": false
+    }
+  },
+  "formatPreference": [
+    "mp4-h264",
+    "mov-h264",
+    "mov-prores-422",
+    "mov-prores-hq"
+  ],
+  "encoding": {
+    "_note": "Defaults used when a placement does not say otherwise. videoKbps is the quality aimed for; it is moved inside each file's allowed range automatically.",
+    "videoKbps": 18000,
+    "audioKbps": 320,
+    "sampleRate": 48000,
+    "h264Profile": "high",
+    "pixFmt": "yuv420p",
+    "x264Preset": "fast",
+    "bframes": 2,
+    "gopSeconds": 0.5,
+    "closedGop": true,
+    "tagBt709": true,
+    "channels": 2,
+    "sizeSafety": 0.9,
+    "assumeLengthSec": 30
+  },
+  "strictness": {
+    "_note": "How the report decides PASS / WARN / FAIL. Loudness within loudnessPassDb of target = PASS, within loudnessWarnDb = WARN, else FAIL. A frame counts as a duplicate when its average brightness differs from the previous frame by less than dupDiffThreshold (0 to 255 scale).",
+    "bitrateWarnPercent": 10,
+    "sizeWarnPercent": 10,
+    "durationToleranceSec": 0.1,
+    "fpsTolerancePercent": 0.1,
+    "loudnessPassDb": 0.5,
+    "loudnessWarnDb": 1.5,
+    "peakWarnDb": 0.5,
+    "dupDiffThreshold": 0.05,
+    "dupPassPercent": 0.5,
+    "dupWarnPercent": 5,
+    "barTolerancePx": 4
+  },
+  "spotLengths": {
+    "_note": "A video within snapWithinSec of one of these lengths (in seconds) is made exactly that long: cut if a little long, last frame held if a little short. Length is counted in frames, like broadcast timecode (6 s = 180 frames at 29.97 fps).",
+    "lengths": [
+      6,
+      15,
+      30,
+      60
+    ],
+    "snapWithinSec": 0.5
+  },
+  "limits": {
+    "_note": "Browser memory guard. Based on ONE test point (a 526 MB ProRes output worked, using about 2.3 GB of browser memory). Adjust after more testing.",
+    "memoryWarnMB": 800,
+    "memoryBlockMB": 1500
+  },
+  "grain": {
+    "_note": "Light grain (temporal noise) that stops exact duplicate frames. OFF by default; the page offers it when the frame rate is changed or the check finds repeated frames. Tested 2026-11-09: strength 1 changes nothing, 3 and 5 are unreliable, 4 removed every exact repeat at 6 to 20 Mbps H.264 and ProRes. Use even numbers. A preset can override with \"noise\": {\"strength\": 6}.",
+    "strength": 4
+  },
+  "placements": [
+    {
+      "id": "cineplex",
+      "name": "Cineplex: cinema pre-show",
+      "short": "Cineplex",
+      "tile": {
+        "title": "Cineplex",
+        "sub": "Cinema pre-show",
+        "color": "#0b3b8c",
+        "logo": ""
+      },
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "Cineplex Media Digital Pre-Show specs, May 2024 (PDF supplied by team; link not yet added)",
+        "url": ""
+      },
+      "accepts": {
+        "formats": [
+          "mov-prores-hq"
+        ],
+        "shortEdge": 1080,
+        "frameRates": [
+          23.976,
+          29.97
+        ],
+        "sampleRates": [
+          48000
+        ],
+        "audioRequired": true,
+        "loudness": {
+          "mode": "max",
+          "average": -12,
+          "peak": -8
+        },
+        "letterbox": "allowed"
+      },
+      "naming": {
+        "maxLength": 12,
+        "allowedChars": "A-Za-z0-9",
+        "note": "Max 12 characters before the extension, letters and numbers only, end with a language letter.",
+        "example": "CAASCO15E"
+      },
+      "safeZones": [
+        {
+          "label": "Text-safe area (1724 x 972)",
+          "type": "safe",
+          "x": 98,
+          "y": 54,
+          "w": 1724,
+          "h": 972,
+          "refW": 1920,
+          "refH": 1080
+        }
+      ],
+      "notes": [
+        "Audio: the written rule is used (average no higher than -12 dB, peaks no higher than -8 dB). The '-10db' in the spec table is not treated as a target.",
+        "The PDF says 8-bit, but ProRes 422 HQ is normally 10-bit. Confirm with Cineplex. This preset uses standard 10-bit ProRes 422 HQ.",
+        "File names: max 12 characters, no special characters, end with a language letter (E = English, F = French), for example NAMEE.MOV. Type the name yourself.",
+        "Text-safe area is 1724 x 972. Video files only, no stills.",
+        "Sound: Cineplex sets limits, not a target: average no higher than -12 dB, peaks no higher than -8 dB. Quieter audio is left as it is; louder audio is turned down."
+      ]
+    },
+    {
+      "id": "rogers",
+      "name": "Rogers Sports & Media: digital video",
+      "short": "Rogers",
+      "tile": {
+        "title": "Rogers",
+        "sub": "Broadcast and self-serve",
+        "color": "#da291c",
+        "logo": ""
+      },
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "Rogers Sports & Media ad specifications, Digital Video (website, checked 2026-11-11), plus the RSM Ad Manager self-serve specs supplied by the team",
+        "url": "https://www.rogerssportsandmedia.com/adspecs/?filter1=Digital_Video"
+      },
+      "accepts": {
+        "formats": [
+          "mp4-h264"
+        ],
+        "shortEdge": 1080,
+        "minShortEdge": 1080,
+        "frameRates": [
+          23.976,
+          29.97
+        ],
+        "videoKbps": {
+          "min": 10000,
+          "max": 40000
+        },
+        "sampleRates": [
+          48000
+        ],
+        "audioKbps": {
+          "min": 192
+        },
+        "audioRequired": true,
+        "loudness": {
+          "mode": "lufs",
+          "target": -24,
+          "peak": -1
+        },
+        "duplicateFrames": "not allowed"
+      },
+      "notes": [
+        "One file that meets both Rogers specs: booked through a Rogers rep, and self-serve in RSM Ad Manager.",
+        "MP4, H.264, progressive, 1920 x 1080. A constant 18 Mbps: inside the 10 to 40 Mbps range, and a 30 second spot (about 70 MB) stays under the self-serve limit of 85 MB.",
+        "23.976 or 29.97 fps (29.97 preferred).",
+        "No duplicate frames allowed. No slates or load plates.",
+        "Audio AAC, 192 kbps or higher, 48 kHz, stereo. Loudness -24 LKFS (plus or minus 2), true peak no higher than -1 dB.",
+        "Self-serve takes spots up to 30 seconds; 60 second spots go through a rep, where there is no size limit.",
+        "Captions only through VAST 4.x, never burned in. Send 5 days before launch.",
+        "Sound: -24 LKFS with true peak no higher than -1 dB, per the Rogers spec."
+      ]
+    },
+    {
+      "id": "crave-bell",
+      "name": "Crave / Bell Media: streaming and connected TV",
+      "short": "Crave / Bell",
+      "tile": {
+        "title": "Crave / Bell",
+        "sub": "Streaming: Crave, CTV app, Noovo, TSN",
+        "color": "#00549a",
+        "logo": ""
+      },
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "Bell Media Digital Advertising Standards and Creative Specifications, April 16 2026, page 15 (Connected TV, VAST)",
+        "url": "https://www.bellmedia.ca/lede/wp-content/uploads/2020/05/Bell-Media-Ad-Specs-EN-April-16-2026.pdf"
+      },
+      "accepts": {
+        "formats": [
+          "mp4-h264"
+        ],
+        "shortEdge": 1080,
+        "minShortEdge": 720,
+        "frameRates": [
+          23.976,
+          29.97,
+          59.94
+        ],
+        "videoKbps": {
+          "min": 5000
+        },
+        "maxSizeMB": 25,
+        "h264Profiles": [
+          "High",
+          "Main"
+        ],
+        "sampleRates": [
+          44100
+        ],
+        "audioRequired": true,
+        "loudness": {
+          "mode": "lufs",
+          "target": -24,
+          "peak": -9
+        }
+      },
+      "notes": [
+        "One spec covers Crave, CTV, Noovo, TSN, CP24, BNN and CTV News on connected TV (\"Crave now includes CTV and Noovo\").",
+        "MP4, H.264, progressive, 1920 x 1080 recommended (1280 x 720 minimum). 6, 15 or 30 seconds.",
+        "Max file size 25 MB, minimum 5,000 kbps. A 30 s spot must stay near 6 Mbps to fit, so this preset uses a constant 5,800 kbps (constant, so simple scenes do not drop under the minimum).",
+        "Frame rates 23.98, 29.97 or 59.94. Bell converts 23.98 to 29.97 on its side.",
+        "Audio AAC 44.1 kHz, -24 LKFS (plus or minus 2), average about -12 dB with nothing peaking over -9 dB.",
+        "Sound: -24 LKFS with peaks held under -9 dB, per the Bell spec."
+      ]
+    },
+    {
+      "id": "ctv-local",
+      "name": "CTV: local TV stations",
+      "short": "CTV",
+      "tile": {
+        "title": "CTV",
+        "sub": "Local TV stations (adds 10 s of black)",
+        "color": "#e31e18",
+        "logo": "",
+        "colors": [
+          "#e31e18",
+          "#22569f",
+          "#207a46"
+        ]
+      },
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "CTV local station commercial specs (Word document supplied by team, 2026-11-11, undated)",
+        "url": ""
+      },
+      "accepts": {
+        "formats": [
+          "mp4-h264",
+          "mov-h264",
+          "mov-prores-422"
+        ],
+        "shortEdge": 1080,
+        "sampleRates": [
+          48000
+        ],
+        "loudness": {
+          "mode": "lufs",
+          "target": -24,
+          "peak": -2
+        },
+        "tailBlackSec": 10
+      },
+      "naming": {
+        "pattern": "^[A-Za-z0-9]+_[A-Za-z0-9]+_[0-9]{1,3}_[A-Za-z0-9]+$",
+        "patternLabel": "Client_SpotName_Duration_ProductionCompany",
+        "note": "Use Client_SpotName_Duration_ProductionCompany, for example CAA_TravelInsurance_30_CAANEO. No spaces.",
+        "example": "CAA_SCOComputer_15_CAANEO"
+      },
+      "notes": [
+        "Local CTV stations ask for at least 10 seconds of black after the commercial. This tile adds 10 seconds of black and silence after the spot is cut to its exact length.",
+        "Accepted: MOV, MP4 or AVI at 1920 x 1080, ProRes 4:2:2 or H.264. This preset makes an H.264 MP4 at a steady 20 Mbps.",
+        "Audio 48 kHz, stereo or mono mix (no split tracks). The sheet gives no loudness target, so the Canadian broadcast standard of -24 LKFS is used.",
+        "File name: Client_SpotName_Duration_ProductionCompany, for example CAA_TravelInsurance_30_CAANEO. Type it yourself.",
+        "Closed captions go as a separate .scc file. This tool does not make captions.",
+        "Upload at least 2 business days before the start date. Upload details are on the station's sheet; check with your CTV Account Executive.",
+        "Sound: Not on the CTV sheet. Uses the Canadian broadcast standard (-24 LKFS, peaks no higher than -2 dB)."
+      ]
+    },
+    {
+      "id": "corus",
+      "name": "Corus: online video and connected TV",
+      "short": "Corus",
+      "tile": {
+        "title": "Corus",
+        "sub": "Pre-roll and connected TV: StackTV, Pluto TV",
+        "color": "#1f2a6b",
+        "logo": ""
+      },
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "Corus Digital Creative Specifications (PDF supplied by team), In-Stream, Pre-Roll and Connected TV video column",
+        "url": ""
+      },
+      "accepts": {
+        "formats": [
+          "mp4-h264"
+        ],
+        "shortEdge": 1080,
+        "minShortEdge": 360,
+        "frameRates": [
+          29.97
+        ],
+        "videoKbps": {
+          "min": 4500,
+          "max": 8000
+        },
+        "maxSizeMB": 510,
+        "sampleRates": [
+          48000
+        ],
+        "audioKbps": {
+          "min": 128,
+          "max": 128
+        }
+      },
+      "notes": [
+        "Covers in-stream, pre-roll and connected TV (StackTV, Pluto TV). MP4 only: no MOV on Pluto TV.",
+        "MP4, H.264 with AAC audio, 1920 x 1080 recommended (1280 x 720 and 640 x 360 also accepted).",
+        "29.97 frames per second. A 23.976 video is converted to 29.97 by this preset.",
+        "Video bitrate 4,500 to 8,000 kbps; this preset uses a constant 6,000 kbps. Max file 510 MB. 6, 15 or 30 seconds.",
+        "Audio AAC 128 kbps, 48 kHz, stereo. The sheet gives no loudness target, so the sound is left as it is.",
+        "Send to Corus 5 business days before launch (10 if a third-party vendor is involved).",
+        "Sound: No loudness rule in the Corus spec sheet."
+      ]
+    },
+    {
+      "id": "prime-video",
+      "name": "Amazon Prime Video",
+      "short": "Prime Video",
+      "tile": {
+        "title": "Prime Video",
+        "sub": "Amazon streaming",
+        "color": "#0f79d0",
+        "logo": ""
+      },
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "Team notes. Link not yet added.",
+        "url": ""
+      },
+      "accepts": {
+        "formats": [
+          "mp4-h264",
+          "mov-h264"
+        ],
+        "shortEdge": 1080,
+        "videoKbps": {
+          "min": 15000
+        },
+        "maxSizeMB": 500,
+        "h264Profiles": [
+          "High",
+          "Main"
+        ],
+        "sampleRates": [
+          48000
+        ],
+        "audioKbps": {
+          "min": 192
+        },
+        "audioRequired": true
+      },
+      "notes": [
+        "Minimum 15 Mbps video; 50 Mbps recommended for Prime Video. This preset targets 25 Mbps. Raise it if the placement asks for more, but watch the 500 MB limit.",
+        "Constant frame rate. Audio minimum 192 kbps.",
+        "Sound: No target known."
+      ]
+    },
+    {
+      "id": "disney",
+      "name": "Disney+",
+      "short": "Disney+",
+      "tile": {
+        "title": "Disney+",
+        "sub": "Streaming",
+        "color": "#113ccf",
+        "logo": ""
+      },
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "Disney Ad Sales US media kit (via team notes). Canadian requirements not yet checked. Disney+ ANZ 2026 spec and 2025 decline reasons also checked.",
+        "url": "https://files.disneyadvertising.com/MediaKit/Disney-Plus/disney_reasons.pdf"
+      },
+      "accepts": {
+        "formats": [
+          "mp4-h264",
+          "mov-h264"
+        ],
+        "shortEdge": 1080,
+        "frameRates": [
+          23.976,
+          24,
+          25,
+          29.97,
+          30
+        ],
+        "videoKbps": {
+          "min": 10000,
+          "max": 40000
+        },
+        "maxSizeMB": 1900,
+        "h264Profiles": [
+          "Main",
+          "High",
+          "High 4:2:2"
+        ],
+        "sampleRates": [
+          48000
+        ],
+        "audioKbps": {
+          "min": 128
+        },
+        "audioRequired": true,
+        "letterbox": "not allowed",
+        "duplicateFrames": "not allowed"
+      },
+      "safeZones": [
+        {
+          "label": "Player ad overlay, keep clear (220 x 135)",
+          "type": "avoid",
+          "x": 1700,
+          "y": 0,
+          "w": 220,
+          "h": 135,
+          "refW": 1920,
+          "refH": 1080
+        }
+      ],
+      "notes": [
+        "Disney's own rejection list says 'duplicate frames' means the file was converted to a different frame rate. The fix is a native-frame-rate export, not grain. Keep the frame rate native.",
+        "Constant frame rate, native, no pulldown, progressive. No letterboxing or pillarboxing. No slates or countdowns. One video track and one audio track.",
+        "Keep important content out of the top-right 220 x 135 px (player ad overlay).",
+        "Max file size: 250 MB if Hulu-served, 1.9 GB for partner or programmatic. This preset checks 1900 MB. Change it if needed.",
+        "Uses H.264 High profile 4:2:0, as in the Disney ANZ 2026 spec. An older note mentioned \"Main profile 4:2:2\"; confirm with Disney if a file is declined for this.",
+        "Sound: No target known. Phase 2: type one in."
+      ]
+    },
+    {
+      "id": "landmark",
+      "name": "Landmark Cinemas: pre-show",
+      "short": "Landmark",
+      "tile": {
+        "title": "Landmark",
+        "sub": "Cinema pre-show",
+        "color": "#8a1c2b",
+        "logo": ""
+      },
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "Landmark Cinemas Onscreen Advertising Specs & Delivery (2023 rate card PDF, supplied by team)",
+        "url": "https://www.landmarkcinemas.com/advertising"
+      },
+      "accepts": {
+        "formats": [
+          "mp4-h264",
+          "mov-h264"
+        ],
+        "shortEdge": 1080,
+        "minShortEdge": 1080,
+        "frameRates": [
+          23.976,
+          24
+        ],
+        "videoKbps": {
+          "min": 50000
+        },
+        "sampleRates": [
+          48000
+        ],
+        "loudness": {
+          "mode": "max",
+          "average": -12,
+          "peak": -8
+        }
+      },
+      "naming": {
+        "pattern": "^LC-[A-Za-z0-9]+-[A-Za-z0-9]+-[0-9]{1,3}-[A-Za-z]{2,3}-[A-Za-z]{3}$",
+        "patternLabel": "LC-Client-SpotName-Duration-Language-Month",
+        "note": "Use LC-Client-SpotName-Duration-Language-Month, for example LC-CAA-TravelInsurance-30-ENG-Dec. No spaces.",
+        "example": "LC-CAA-SCOComputer-15-ENG-Nov"
+      },
+      "safeZones": [
+        {
+          "label": "Text-safe area (1724 x 972)",
+          "type": "safe",
+          "x": 98,
+          "y": 54,
+          "w": 1724,
+          "h": 972,
+          "refW": 1920,
+          "refH": 1080
+        }
+      ],
+      "notes": [
+        "Digital motion ads: MP4, H.264, 50 Mbps or higher, 24 or 23.976 fps, 1920 x 1080. This preset uses a constant 55 Mbps so simple scenes do not drop under the minimum.",
+        "Audio: the sheet mentions uncompressed 48 kHz 16-bit WAV or AIFF; Landmark has confirmed that a separate WAV is not required. This preset puts high-quality AAC (320 kbps) inside the MP4.",
+        "Audio level: the sheet says average 'higher than -12' with peaks not over -8. Read as the same limits as Cineplex (average no higher than -12 dB, peaks no higher than -8 dB). Confirm with Landmark.",
+        "File name must follow LC-Client-SpotName-Duration-Language-Month, for example LC-CAA-TravelInsurance-30-ENG-Dec. Type it yourself.",
+        "Text-safe area is 1724 x 972. Deliver through Landmark's WeTransfer page (landmarkcinemas.wetransfer.com).",
+        "Showtime slides (2048 x 858 scope and 1998 x 1080 flat JPEGs) are still images, not covered by this tool.",
+        "Sound: Landmark sets limits: average no higher than -12 dB, peaks no higher than -8 dB. Quieter audio is left as it is; louder audio is turned down."
+      ]
+    },
+    {
+      "id": "spotify",
+      "name": "Spotify video ad",
+      "short": "Spotify",
+      "tile": {
+        "title": "Spotify",
+        "sub": "Video ad",
+        "color": "#15883e",
+        "logo": ""
+      },
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "Team notes. Link not yet added.",
+        "url": ""
+      },
+      "accepts": {
+        "formats": [
+          "mp4-h264",
+          "mov-h264"
+        ],
+        "minShortEdge": 720,
+        "maxSizeMB": 500,
+        "sampleRates": [
+          48000
+        ],
+        "audioRequired": true,
+        "loudness": {
+          "mode": "rms",
+          "target": -14,
+          "peak": -0.2
+        }
+      },
+      "notes": [
+        "30 seconds or less, max 500 MB, at least about 720 px on the short side. Audio is required (no silent files).",
+        "Loudness: RMS -14 dBFS with peak -0.2 dBFS (Phase 2). RMS is not the same as LUFS; the tool will label which it measures.",
+        "Resolution is left as the source's.",
+        "Sound: RMS target, not LUFS."
+      ]
+    },
+    {
+      "id": "youtube",
+      "name": "YouTube",
+      "short": "YouTube",
+      "tile": {
+        "title": "YouTube",
+        "sub": "Pre-roll, in-feed and Shorts ads",
+        "color": "#e0002b",
+        "logo": ""
+      },
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "Team notes (YouTube recommended upload settings). Link not yet added.",
+        "url": ""
+      },
+      "accepts": {
+        "formats": [
+          "mp4-h264",
+          "mov-h264",
+          "mov-prores-hq"
+        ],
+        "videoKbps": {
+          "min": 6000
+        },
+        "h264Profiles": [
+          "High"
+        ],
+        "sampleRates": [
+          48000
+        ],
+        "audioRequired": true
+      },
+      "notes": [
+        "MP4, no edit lists, moov atom at the front, H.264 High, progressive, 2 consecutive B-frames, closed GOP at half the frame rate, 4:2:0, BT.709, VBR, same frame rate as the source.",
+        "1080p about 8 Mbps (12 Mbps for 48 to 60 fps). Audio AAC-LC stereo 48 kHz at 384 kbps.",
+        "This tool does not deinterlace. Interlaced sources show a warning.",
+        "YouTube recommends about 8 to 16 Mbps for 1080p but accepts higher, so no upper limit is checked.",
+        "YouTube recommends 384 kbps stereo audio but accepts less, so audio bitrate is not checked. (The encoder delivers less than requested on quiet audio.)",
+        "Covers YouTube ads: pre-roll (in-stream), in-feed and Shorts.",
+        "Sound: YouTube normalizes loudness itself."
+      ]
+    },
+    {
+      "id": "meta",
+      "name": "Meta: Facebook and Instagram (unverified)",
+      "short": "Meta",
+      "tile": {
+        "title": "Meta",
+        "sub": "Feed, Reels and Stories ads",
+        "color": "#0a5fd6",
+        "logo": ""
+      },
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "Third-party summaries. Verify against Meta's own ad specs. Safe zones not yet documented here.",
+        "url": ""
+      },
+      "accepts": {
+        "formats": [
+          "mp4-h264",
+          "mov-h264"
+        ],
+        "shortEdge": 1080,
+        "minShortEdge": 720,
+        "maxSizeMB": 4096,
+        "sampleRates": [
+          48000
+        ],
+        "audioRequired": true
+      },
+      "notes": [
+        "MP4 or MOV, H.264, max 4 GB, at least 720 px on the short side.",
+        "Covers Facebook and Instagram Feed, Reels and Stories ads."
+      ]
+    },
+    {
+      "id": "custom",
+      "name": "Custom",
+      "short": "Custom",
+      "custom": true,
+      "tile": {
+        "title": "Custom",
+        "sub": "Choose every setting yourself",
+        "color": "#4f5866",
+        "logo": ""
+      },
+      "status": "custom",
+      "source": {
+        "label": "Your own choices"
+      },
+      "accepts": {
+        "formats": [
+          "mp4-h264"
+        ],
+        "shortEdge": 1080,
+        "sampleRates": [
+          48000
+        ]
+      },
+      "notes": [
+        "Pick the file type, frame rate, bitrate and sound yourself under \"Change settings\"."
+      ]
+    }
+  ]
+}

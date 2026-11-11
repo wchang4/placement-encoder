@@ -1,1068 +1,626 @@
 // app.js
-// Page logic: intake, preset and settings form, warnings, encode with progress,
-// download, and the verification report. The heavy lifting lives in:
-//   engine.js (ffmpeg.wasm), args.js (command line), verify.js (report), media.js (helpers).
-// Presets come from presets.json, so adding a placement needs no code changes.
+// The page. It holds the state (the video, the chosen placements, the names typed)
+// and draws it. Everything about WHAT each file should be comes from plan.js; the
+// encoder work lives in engine.js, args.js, level.js and analyze.js; the final
+// report is verify.js. Placements live in placements.json, so adding one needs no code.
 
 import { Engine } from './engine.js';
 import { buildArgs, targetFormat, spotLength, outDuration } from './args.js';
 import { verify, overall, checkName } from './verify.js';
-import { measureAudio, scanVideo, scanDuplicates, grabFrames, describeBars, describeBlackEnds } from './analyze.js';
+import { measureAudio, scanVideo, grabFrames, describeBars, describeBlackEnds } from './analyze.js';
 import { planLeveling } from './level.js';
-import { buildGroups, shortName } from './groups.js';
-import { summarize, pixDepth, fmtFps, fmtBytes, fmtKbps, fmtTime, aspectLabel, aspectValue, estimateOutputBytes } from './media.js';
+import { planFiles, describeFile, nameSlots, checkNames, reportSpec } from './plan.js';
+import { summarize, pixDepth, fmtFps, fmtBytes, fmtKbps, fmtTime, aspectLabel } from './media.js';
 
 const $ = (id) => document.getElementById(id);
 const engine = new Engine();
 
-// ---------- state ----------
-const state = {
-  config: null,        // whole presets.json
-  ticked: [],          // ids of the placements ticked in step 2
-  groups: [],          // the files those placements need (see groups.js), each with its own settings and name
-  active: 0,           // which file is shown in the editing area
-  nameOverride: null,  // file name used while checking a file that is not the active one
-  blobUrls: [],        // download links made this session (released when results are cleared)
-  preset: null,        // preset of the active file (a placement, or a combined preset for a shared file)
-  settings: null,      // current form values (starts as a copy of defaults)
-  defaults: null,      // the preset's values in the same shape as settings (for highlighting changes)
-  analysis: null,      // results of the preflight analysis of the current source
-  file: null,          // the source File
-  src: null,           // summarize() of the source
-  running: false,
-  showZones: true,     // draw safe-zone guides on the preview frames
+const S = {
+  cfg: null,
+  chosen: [],          // placement ids, in the order of placements.json
+  video: null,         // { file, src, analysis, baseName }
+  files: [],           // from planFiles, each with .slots (names) and .desc (describeFile)
+  names: {},           // names the person typed, by slot id
+  custom: {},          // per-file setting changes, by file key
+  results: {},         // per-file result after making it, by file key
+  running: false, cancelled: false, busyKey: null,
+  blobUrls: []
 };
 
-// ---------- tiny DOM helper ----------
+// ---------- tiny helpers ----------
 function el(tag, attrs = {}, ...kids) {
   const n = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
     if (k === 'class') n.className = v; else if (k === 'text') n.textContent = v;
-    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v);
+    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v === true ? '' : v);
   }
-  for (const c of kids) if (c != null) n.append(c);
+  for (const c of kids.flat()) if (c != null && c !== false) n.append(c);
   return n;
 }
+const joinNames = (a) => { const u = [...new Set(a)]; return u.length <= 1 ? (u[0] || '') : u.slice(0, -1).join(', ') + ' and ' + u[u.length - 1]; };
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const mbps = (k) => (k / 1000).toFixed(1).replace(/\.0$/, '') + ' Mbps';
+const placement = (id) => S.cfg.placements.find(p => p.id === id);
 
-// ---------- settings form definition ----------
-// One entry per control. "show" hides a control when it does not apply.
-const OPT = {
-  // "format" and "size" are shortcuts: one plain choice that sets several underlying settings.
-  format: [['mp4-h264', 'MP4 file (H.264 video)'], ['mov-h264', 'MOV file (H.264 video)'], ['mov-prores', 'MOV file (Apple ProRes video, very large)']],
-  size: [['keep', 'Keep the source size'], ['1920x1080', '1920 x 1080 (HD, 16:9)'], ['1280x720', '1280 x 720 (16:9)'], ['3840x2160', '3840 x 2160 (4K, 16:9)'],
-    ['1080x1920', '1080 x 1920 (vertical 9:16)'], ['1080x1080', '1080 x 1080 (square)'], ['1080x1350', '1080 x 1350 (4:5)']],
-  noiseStrength: [['2', '2 (lightest that works)'], ['4', '4 (recommended)'], ['6', '6'], ['8', '8 (visible on flat colour)']],
-  h264Profile: [['main', 'Main'], ['high', 'High'], ['high422', 'High 4:2:2']],
-  proresProfile: [['proxy', 'Proxy'], ['lt', 'LT'], ['422', '422 (Standard)'], ['hq', '422 HQ'], ['4444', '4444']],
-  pixFmt: [['yuv420p', '4:2:0 (8-bit)'], ['yuv422p', '4:2:2 (8-bit)']],
-  fps: [['native', 'Keep native (recommended)'], ['23.976', '23.976'], ['24', '24'], ['25', '25'], ['29.97', '29.97'], ['30', '30'], ['50', '50'], ['59.94', '59.94'], ['60', '60']],
-  bitrateMode: [['vbr', 'VBR (variable)'], ['cbr', 'CBR (constant)']],
-  x264Preset: [['veryfast', 'Fastest encode'], ['fast', 'Fast (default)'], ['medium', 'Balanced'], ['slow', 'Best quality (slow)']],
-  acodec: [['aac', 'AAC'], ['pcm', 'PCM (uncompressed)']],
-  sampleRate: [['44100', '44.1 kHz'], ['48000', '48 kHz']],
-  bitDepth: [['16', '16-bit'], ['24', '24-bit']],
-  channels: [['1', 'Mono'], ['2', 'Stereo']],
-  loudMode: [['off', 'Off (leave the audio level unchanged)'], ['lufs', 'Integrated loudness (LUFS) + true peak'], ['rms', 'Average level (RMS dB) + peak'], ['max', 'Limits only: no louder than average (RMS dB) + peak']]
-};
-const isH264 = (s) => s.vcodec === 'h264';
-// Read/write the two shortcut choices.
-const PSEUDO = {
-  format: {
-    get: (s) => `${s.container}-${s.vcodec}`,
-    set: (s, v) => {
-      const [c, vc] = v.split('-'); s.container = c; s.vcodec = vc;
-      s.acodec = vc === 'prores' ? 'pcm' : 'aac'; // ProRes deliveries use uncompressed audio; H.264 uses AAC
-    }
-  },
-  size: {
-    get: (s) => (s.width && s.height ? `${s.width}x${s.height}` : 'keep'),
-    set: (s, v) => { if (v === 'keep') { s.width = null; s.height = null; } else { const [w, h] = v.split('x').map(Number); s.width = w; s.height = h; } }
-  }
-};
-// Settings shown only in Custom mode (or after "Change the technical settings").
-// Groups marked expert sit inside a further collapsed section. Audio channels are
-// always stereo and the audio codec follows the file type, so neither is shown.
-const FIELDS = [
-  { group: 'The basics', items: [
-    { k: 'format', label: 'File type', type: 'select' },
-    { k: 'size', label: 'Picture size', type: 'select' },
-    { k: 'fps', label: 'Frame rate', type: 'select' },
-    { k: 'bitrateKbps', label: 'Video bitrate (kbps, higher = better quality and bigger file)', type: 'bitrate', show: isH264 }
-  ] },
-  { group: 'Video details', expert: true, items: [
-    { k: 'h264Profile', label: 'H.264 profile', type: 'select', show: isH264 },
-    { k: 'proresProfile', label: 'ProRes profile', type: 'select', show: (s) => !isH264(s) },
-    { k: 'pixFmt', label: 'Chroma / pixel format', type: 'select', show: isH264 },
-    { k: 'bitrateMode', label: 'Bitrate mode', type: 'select', show: isH264 },
-    { k: 'x264Preset', label: 'Encode speed vs quality', type: 'select', show: isH264 },
-    { k: 'bframes', label: 'B-frames', type: 'number', show: isH264 },
-    { k: 'gopSeconds', label: 'Keyframe interval (seconds, 0 = auto)', type: 'number', show: isH264, step: '0.1' },
-    { k: 'closedGop', label: 'Closed GOP', type: 'check', show: isH264 },
-    { k: 'faststart', label: 'Fast-start (moov atom at front)', type: 'check' },
-    { k: 'stripEditLists', label: 'Strip edit lists', type: 'check' },
-    { k: 'tagBt709', label: 'Tag colour space as BT.709', type: 'check' },
-    { k: 'noiseStrength', label: 'Grain strength (when grain is on)', type: 'select', numeric: true }
-  ] },
-  { group: 'Audio details', expert: true, items: [
-    { k: 'sampleRate', label: 'Sample rate', type: 'select', numeric: true },
-    { k: 'bitDepth', label: 'Bit depth', type: 'select', numeric: true, show: (s) => s.acodec === 'pcm' },
-    { k: 'audioKbps', label: 'Audio bitrate (kbps)', type: 'number', show: (s) => s.acodec === 'aac' }
-  ] },
-  { group: 'Volume (audio leveling)', expert: true, items: [
-    { k: 'loudMode', label: 'Leveling method', type: 'select' },
-    { k: 'loudTarget', label: 'Target or limit (LUFS, or average dB)', type: 'number', step: '0.1', signed: true, show: (s) => s.loudMode !== 'off' },
-    { k: 'loudPeak', label: 'Peak limit (dBTP, or dB)', type: 'number', step: '0.1', signed: true, show: (s) => s.loudMode !== 'off' },
-    { type: 'picks', label: 'Quick picks', show: (s) => s.loudMode === 'lufs',
-      picks: [['Broadcast: -24 LKFS / -2 dBTP', -24, -2], ['Streaming: -14 LUFS / -1 dBTP', -14, -1], ['Streaming: -16 LUFS / -1 dBTP', -16, -1]] },
-    { type: 'hint', show: (s) => s.loudMode !== 'off',
-      text: 'The audio is measured first, then adjusted, then measured again after encoding so the report shows the real result. If you do not know the target, leave leveling Off or ask the placement.' }
-  ] }
-];
-
-const controls = {}; // key -> { wrap, inputs: [..], f }  (controls without a key use "_n")
-const val = (s, k) => (PSEUDO[k] ? PSEUDO[k].get(s) : s[k]);
-
-function buildSettingsForm() {
-  const root = $('settings-form'); root.replaceChildren(); for (const k in controls) delete controls[k];
-  let n = 0, expert = null;
-  for (const g of FIELDS) {
-    const grid = el('div', { class: 'grid' });
-    for (const f of g.items) grid.append(buildControl(f, f.k || '_' + (n++)));
-    if (g.expert) {
-      if (!expert) { expert = el('details', { class: 'expert' }, el('summary', { text: 'Expert settings (most people never need these)' })); root.append(expert); }
-      expert.append(el('h3', { text: g.group }), grid);
-    } else root.append(el('h3', { text: g.group }), grid);
-  }
-  refreshForm();
+// Broadcast timecode: frames counted at the nominal rate (29.97 counts as 30), so a
+// 15 s spot at 29.97 fps (450 frames) reads 00:00:15:00.
+function timecode(sec, fps) {
+  const nom = Math.round(fps || 30), frames = Math.round(sec * (fps || 30));
+  const ff = frames % nom, s = Math.floor(frames / nom);
+  const p = (x) => String(x).padStart(2, '0');
+  return { hms: `${p(Math.floor(s / 3600))}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}`, ff: p(ff), frames };
 }
 
-function buildControl(f, key) {
-  const s = { ...state.settings, format: val(state.settings, 'format'), size: val(state.settings, 'size') };
-  let wrap, inputs = [];
-  if (f.type === 'hint') {
-    wrap = el('div', { class: 'hint', style: 'grid-column:1/-1', text: f.text });
-  } else if (f.type === 'picks') {
-    wrap = el('div', { style: 'grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;align-items:center' }, el('span', { class: 'hint', text: f.label + ':' }),
-      ...f.picks.map(([t, target, peak]) => el('button', { class: 'ghost', type: 'button', text: t, onclick: () => { state.settings.loudTarget = target; state.settings.loudPeak = peak; refreshForm(); update(); } })));
-  } else if (f.type === 'check') {
-    const cb = el('input', { type: 'checkbox' }); cb.checked = !!s[f.k];
-    cb.addEventListener('change', () => setSetting(f.k, cb.checked));
-    wrap = el('label', { class: 'check' }, cb, f.label); inputs = [cb];
-  } else if (f.type === 'select') {
-    const sel = el('select');
-    for (const [v, t] of OPT[f.k]) sel.append(el('option', { value: v, text: t }));
-    sel.value = String(s[f.k]);
-    sel.addEventListener('change', () => setSetting(f.k, f.numeric ? Number(sel.value) : sel.value));
-    wrap = el('label', {}, f.label, sel); inputs = [sel];
-  } else if (f.type === 'bitrate' || f.type === 'slider') {
-    const bit = f.type === 'bitrate';
-    const num = el('input', { type: 'number', min: bit ? '500' : String(f.min), max: bit ? '400000' : String(f.max), step: bit ? '100' : String(f.step) });
-    const rng = el('input', { type: 'range', min: bit ? '1000' : String(f.min), max: bit ? '80000' : String(f.max), step: bit ? '500' : String(f.step) });
-    num.value = rng.value = s[f.k];
-    num.addEventListener('input', () => { rng.value = num.value; setSetting(f.k, Number(num.value) || 0); });
-    rng.addEventListener('input', () => { num.value = rng.value; setSetting(f.k, Number(rng.value)); });
-    wrap = el('label', {}, f.label, el('div', { class: 'inline' }, rng, num)); inputs = [num, rng];
+// ---------- theme ----------
+function setupTheme() {
+  const btn = $('theme-switch');
+  const isDark = () => document.documentElement.dataset.theme
+    ? document.documentElement.dataset.theme === 'dark'
+    : matchMedia('(prefers-color-scheme: dark)').matches;
+  const sync = () => { btn.setAttribute('aria-checked', String(isDark())); btn.title = isDark() ? 'Switch to light mode' : 'Switch to dark mode'; };
+  btn.addEventListener('click', () => {
+    const next = isDark() ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('pe-theme', next); } catch (e) { /* private window: not remembered */ }
+    sync();
+  });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', sync);
+  sync();
+}
+
+// ---------- 2. tiles ----------
+function badge(p, cls = 'word') {
+  const tl = p.tile || {};
+  const stripes = Array.isArray(tl.colors) && tl.colors.length > 1
+    ? `background:linear-gradient(90deg,${tl.colors.map((c, i, a) => `${c} ${(100 * i / a.length).toFixed(1)}% ${(100 * (i + 1) / a.length).toFixed(1)}%`).join(',')})` : null;
+  return el('span', { class: cls, style: `--brand:${tl.color || '#4f5866'};${stripes || ''}`, text: tl.title || p.short });
+}
+
+function buildTiles() {
+  const list = S.cfg.placements;
+  const tiles = list.map(p => {
+    const tl = p.tile || {};
+    const logo = el('div', { class: 'logo' });
+    if (tl.logo) {
+      const img = el('img', { src: tl.logo, alt: tl.title || p.short });
+      img.addEventListener('error', () => logo.replaceChildren(badge(p)));
+      logo.append(img);
+    } else logo.append(badge(p));
+    return el('button', { type: 'button', class: 'tile', 'data-id': p.id, 'aria-pressed': 'false', title: p.name, onclick: () => onTile(p) },
+      el('span', { class: 'chk', 'aria-hidden': 'true', text: '✓' }), logo, el('span', { class: 'sub', text: tl.sub || '' }));
+  });
+  $('tiles').replaceChildren(...tiles);
+}
+
+function onTile(p) {
+  if (S.running) return;
+  const on = !S.chosen.includes(p.id);
+  if (on && p.custom) S.chosen = [p.id];                                     // Custom stands alone
+  else if (on) S.chosen = S.chosen.filter(id => !placement(id).custom).concat(p.id);
+  else S.chosen = S.chosen.filter(id => id !== p.id);
+  const order = S.cfg.placements.map(x => x.id);
+  S.chosen.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  for (const t of document.querySelectorAll('.tile')) t.setAttribute('aria-pressed', String(S.chosen.includes(t.dataset.id)));
+  replan();
+}
+
+// ---------- planning ----------
+function lengthForPlanning() {
+  const src = S.video?.src;
+  if (!src?.video) return null;
+  const spot = spotLength(src.durationSec, src.video.fps, S.cfg.spotLengths);
+  return spot ? spot.seconds : src.durationSec;
+}
+
+const tagOf = (p) => (p.tile?.title || p.short).split(/[\s/]+/)[0].toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+function replan() {
+  const chosen = S.chosen.map(placement);
+  S.files = planFiles(chosen, S.cfg, { lengthSec: lengthForPlanning() });
+  const many = S.files.length > 1;
+  for (const f of S.files) {
+    // Names start from the video's name. When several files (or copies) are made, each
+    // ends with the placements it is for, so none replaces another.
+    const slots = nameSlots(f);
+    f.slots = slots.map(slot => {
+      const id = f.key + '|' + slot.key;
+      const forTag = f.members.filter(p => slot.for.includes(p.short)).map(tagOf).join('-');
+      const dflt = S.video?.baseName ? (many || slots.length > 1 ? `${S.video.baseName}_${forTag}` : S.video.baseName) : '';
+      return { ...slot, id, name: S.names[id] ?? dflt };
+    });
+    f.desc = describeFile(f, S.cfg, S.video, S.custom[f.key] || {});
+  }
+  renderFiles();
+}
+
+const extOf = (f) => f.desc?.settings?.container || S.cfg.formats[f.rules?.format]?.container || 'mp4';
+
+// ---------- 3. file slips ----------
+function slipStatus(f, nameProblems) {
+  if (S.busyKey === f.key) return ['run', 'Making it now'];
+  const r = S.results[f.key];
+  if (r) return r.status === 'pass' ? ['ok', 'Made'] : r.status === 'warn' ? ['warn', 'Made, look at the notes'] : ['bad', 'Made, with problems'];
+  if (f.desc.blocked) return ['bad', 'Cannot be made as is'];
+  if (f.desc.waiting) return ['', 'Waiting for your video'];
+  if (!S.video.analysis) return ['', 'Checking your video'];
+  const np = nameProblems.flat();
+  if (np.some(x => x.level === 'bad')) return ['bad', 'Needs a file name'];
+  if (f.desc.todo.length || np.length) return ['warn', `${plural(f.desc.todo.length + np.length, 'thing', 'things')} to look at`];
+  return ['ok', 'Ready'];
+}
+
+function renderFiles() {
+  const n = S.files.length, m = S.chosen.length;
+  $('files-intro').textContent = !n ? 'Choose at least one placement to see the files you need.'
+    : n === 1 ? (m > 1 ? `One file covers all ${m} placements.` : 'One file.')
+    : `${n} files for ${plural(m, 'placement', 'placements')}. Placements that can take the same file share one.`;
+  const problems = checkNames(S.files, extOf);
+  $('slips').replaceChildren(...S.files.map((f, i) => slip(f, i, n, problems)));
+  updateMake(problems);
+}
+
+function slip(f, i, n, problems) {
+  const d = f.desc, names = f.members.map(p => p.short);
+  const nameProblems = f.slots.map((_, j) => problems.get(`${i}:${j}`) || []);
+  const [st, stText] = slipStatus(f, nameProblems);
+  const node = el('article', { class: 'slip' + (st ? ' st-' + st : ''), 'data-key': f.key });
+
+  node.append(el('div', { class: 'slip-head' },
+    el('div', {},
+      el('h3', { class: 'slip-title' }, n > 1 ? el('span', { class: 'of', text: `File ${i + 1} of ${n}` }) : null, d.format || 'Cannot be made'),
+      el('p', { class: 'slip-for', text: 'For ' + joinNames(f.members.map(p => p.name)) }),
+      el('div', { class: 'badges' }, f.members.map(p => badge(p)))),
+    el('span', { class: 'status ' + st, text: stText })));
+
+  node.append(readout(f));
+
+  if (!d.waiting && f.rules) {
+    const list = (cls, items, empty) => el('ul', { class: 'items ' + cls },
+      items.length ? items.map(x => el('li', { class: x.level || '' }, x.text, x.more ? el('small', { text: x.more }) : null))
+        : el('li', { class: 'none', text: empty }));
+    const body = el('div', { class: 'slip-body' },
+      el('div', {}, el('h4', { text: 'The tool will' }), list('do', d.changes, 'Make it as it is. Nothing needs changing.')),
+      el('div', {}, el('h4', { text: 'You need to' }), list('todo', d.todo, S.video.analysis ? 'Nothing. Check the name below.' : 'Wait for the check of your video to finish.')));
+    if (d.good.length) body.append(el('div', { class: 'good-wrap' }, el('h4', { text: 'Good to know' }), list('good', d.good, '')));
+    node.append(body);
+
+    node.append(el('div', { class: 'names' }, f.slots.map((slot, j) => nameRow(f, slot, j, i, nameProblems[j]))));
+  } else if (f.rules) {
+    node.append(el('div', { class: 'slip-body' }, el('p', { class: 'hint', style: 'margin:0', text: `Drop your video in step 1 to see exactly what will change for ${joinNames(names)}.` })));
   } else {
-    const inp = el('input', { type: 'number', step: f.step || '1' });
-    if (!f.signed) inp.min = '0';
-    inp.value = s[f.k] == null ? '' : s[f.k];
-    inp.addEventListener('input', () => setSetting(f.k, inp.value === '' ? null : Number(inp.value)));
-    wrap = el('label', {}, f.label, inp); inputs = [inp];
+    node.append(el('div', { class: 'slip-body' }, el('ul', { class: 'items todo' }, d.todo.map(x => el('li', { class: 'bad' }, x.text)))));
   }
-  controls[key] = { wrap, inputs, f };
-  return wrap;
-}
 
-// Update which controls are visible / highlighted / current.
-function refreshForm() {
-  const s = state.settings, d = state.defaults;
-  for (const c of Object.values(controls)) {
-    c.wrap.classList.toggle('hidden', !!(c.f.show && !c.f.show(s)));
-    const k = c.f.k;
-    if (!k) continue;
-    const cur = val(s, k), def = val(d, k);
-    const changed = String(cur ?? '') !== String(def ?? '');
-    for (const i of c.inputs) i.classList.toggle('changed', changed);
-    // keep inputs in sync (e.g. after "Reset" or a quick pick)
-    const i0 = c.inputs[0];
-    if (i0.type === 'checkbox') i0.checked = !!cur; else if (document.activeElement !== i0) i0.value = cur == null ? '' : cur;
-    if (c.inputs[1] && document.activeElement !== c.inputs[1]) c.inputs[1].value = cur;
+  const foot = el('div', { class: 'slip-foot' }, specNotes(f));
+  if (f.rules && !d.waiting) {
+    const zones = safeArea(f); if (zones) foot.append(zones);
+    foot.append(settingsPanel(f));
   }
+  node.append(foot);
+  const run = el('div', { class: 'slip-run', id: 'run-' + i });
+  if (S.results[f.key]) run.append(resultView(S.results[f.key]));
+  node.append(run);
+  return node;
 }
 
-function setSetting(k, v) {
-  if (PSEUDO[k]) PSEUDO[k].set(state.settings, v); else state.settings[k] = v;
-  // Raising the frame rate repeats frames, so grain is switched on with it
-  // (and off again otherwise). The user can still untick it.
-  if (k === 'fps' && state.src) state.settings.noiseOn = raisesFps();
-  // sensible companions: ProRes lives in MOV
-  if (k === 'vcodec' && v === 'prores' && state.settings.container === 'mp4') state.settings.container = 'mov';
-  if (k === 'pixFmt' && v === 'yuv422p' && state.settings.h264Profile !== 'high422') state.settings.h264Profile = 'high422';
-  if (k === 'pixFmt' && v === 'yuv420p' && state.settings.h264Profile === 'high422') state.settings.h264Profile = 'high';
-  // picking a leveling method for the first time: start from the usual numbers
-  if (k === 'loudMode' && v === 'lufs' && !(state.settings.loudTarget < 0)) { state.settings.loudTarget = -14; state.settings.loudPeak = -1; }
-  if (k === 'loudMode' && (v === 'rms' || v === 'max') && !(state.settings.loudTarget < 0)) { state.settings.loudTarget = -14; state.settings.loudPeak = -1; }
-  refreshForm(); update();
+function readout(f) {
+  const d = f.desc, a = f.rules;
+  if (!a) return el('div', { class: 'readout' }, el('span', { class: 'hint', text: f.why ? 'Why: ' + f.why : '' }));
+  if (d.waiting) {
+    const fr = a.frameRates ? a.frameRates.map(fmtFps).join(' or ') + ' fps' : 'your video\'s own';
+    return el('div', { class: 'readout' }, el('dl', { class: 'specs' },
+      el('dt', { text: 'File type' }), el('dd', { text: d.format }),
+      el('dt', { text: 'Picture' }), el('dd', { text: a.shortEdge ? `${a.shortEdge}p, your video's shape` : 'your video\'s size' }),
+      el('dt', { text: 'Frame rate' }), el('dd', { text: fr }),
+      el('dt', { text: 'Video' }), el('dd', { text: a.videoOut ? mbps(a.videoOut) : 'ProRes' })));
+  }
+  const t = d.t, tc = timecode(d.lengthSec, t.fps), s = d.settings;
+  const tail = s.tailBlackSec ? `, including ${s.tailBlackSec} s of black` : '';
+  return el('div', { class: 'readout' },
+    el('div', { class: 'tc', title: 'Length in broadcast timecode (hours:minutes:seconds:frames)' },
+      el('span', { class: 't' }, tc.hms, el('span', { class: 'ff', text: ':' + tc.ff })),
+      el('span', { class: 'u', text: `${tc.frames} frames at ${fmtFps(t.fps)} fps${tail}` })),
+    el('dl', { class: 'specs' },
+      el('dt', { text: 'Picture' }), el('dd', { text: `${t.w} x ${t.h}` }),
+      el('dt', { text: 'Frame rate' }), el('dd', { text: fmtFps(t.fps) + ' fps' }),
+      el('dt', { text: 'Video' }), el('dd', { text: s.vcodec === 'prores' ? 'ProRes ' + (s.proresProfile === 'hq' ? '422 HQ' : '422') : mbps(s.bitrateKbps) }),
+      el('dt', { text: 'File size' }), el('dd', { text: 'about ' + fmtBytes(d.estBytes) })));
 }
 
-// ---------- presets ----------
-// The preset file keeps loudness and noise in their own blocks; the form wants one flat list.
-function defaultsFor(p) {
-  const L = p.loudness || { mode: 'off' };
-  return {
-    ...JSON.parse(JSON.stringify(p.settings)),
-    allowedFps: p.spec?.allowedFps || null, // used when the frame rate is "native" (see targetFormat)
-    loudMode: L.mode || 'off', loudTarget: L.targetDb ?? -14, loudPeak: L.peakDb ?? -1,
-    // Grain is off by default; it is offered when the frame rate changes or repeats are found.
-    noiseOn: false, noiseStrength: p.noise?.strength ?? state.config.grain?.strength ?? 4,
-    dupCheck: true // always re-scan the finished file so the result can say whether repeats remain
+function nameRow(f, slot, j, i, probs) {
+  const ext = '.' + extOf(f);
+  const input = el('input', { type: 'text', value: slot.name, spellcheck: 'false', autocomplete: 'off', 'aria-label': 'File name' + (f.slots.length > 1 ? ' for ' + joinNames(slot.for) : '') });
+  const msg = el('div', { class: 'name-msg-wrap' });
+  const paint = (list) => msg.replaceChildren(...(list.length ? list : (slot.rule?.note ? [{ level: 'rule', text: slot.rule.note }] : []))
+    .map(x => el('div', { class: 'name-msg ' + x.level, text: x.text })));
+  paint(probs);
+  input.addEventListener('input', () => {
+    S.names[slot.id] = input.value; slot.name = input.value;
+    const problems = checkNames(S.files, extOf);
+    // repaint every name message (a duplicate elsewhere may have cleared) without redrawing the inputs
+    document.querySelectorAll('.slip').forEach((node, fi) => node.querySelectorAll('.name-row').forEach((row, sj) => row._paint?.(problems.get(`${fi}:${sj}`) || [])));
+    S.files.forEach((ff, fi) => {
+      const [st, txt] = slipStatus(ff, ff.slots.map((_, sj) => problems.get(`${fi}:${sj}`) || []));
+      const node = document.querySelectorAll('.slip')[fi]; if (!node) return;
+      node.className = 'slip' + (st ? ' st-' + st : '');
+      const chip = node.querySelector('.status'); chip.className = 'status ' + st; chip.textContent = txt;
+    });
+    updateMake(problems);
+  });
+  const row = el('div', { class: 'name-row' },
+    el('label', {}, 'File name', f.slots.length > 1 ? el('span', { class: 'for', text: ' for ' + joinNames(slot.for) }) : null),
+    el('div', { class: 'name-field' }, input, el('span', { class: 'ext', text: ext })), msg);
+  row._paint = paint;
+  return row;
+}
+
+function specNotes(f) {
+  return el('details', {}, el('summary', { text: f.members.length > 1 ? 'Spec sheet notes for these placements' : 'Spec sheet notes' }),
+    el('ul', { class: 'spec-list' }, f.members.map(p => el('li', {},
+      el('b', { text: p.name }),
+      p.custom ? null : el('span', { class: 'conf ' + (p.status === 'verified' ? 'yes' : 'no'), text: p.status === 'verified' ? 'Confirmed ' + (p.verifiedDate || '') : 'Not yet confirmed with the placement' }),
+      el('div', { class: 'src' }, 'Source: ', p.source?.url ? el('a', { href: p.source.url, target: '_blank', rel: 'noopener', text: p.source.label || p.source.url }) : (p.source?.label || 'none')),
+      p.notes?.length ? el('ul', {}, p.notes.map(t => el('li', { text: t }))) : null))));
+}
+
+// The placements' documented safe areas, drawn on a frame from your video.
+function safeArea(f) {
+  const thumbs = S.video?.analysis?.thumbs; if (!thumbs?.length) return null;
+  const v = S.video.src.video;
+  const zones = f.members.flatMap(p => (p.safeZones || []).map(z => ({ ...z, label: `${p.short}: ${z.label}` })))
+    .filter(z => Math.abs(v.width / v.height - z.refW / z.refH) / (z.refW / z.refH) < 0.01);
+  if (!zones.length) return null;
+  const frame = el('div', { class: 'zone-frame' }, el('img', { src: (thumbs[1] || thumbs[0]).url, alt: 'A frame from your video' }),
+    zones.map(z => el('div', { class: 'zone ' + (z.type === 'safe' ? 'safe' : 'avoid'), title: z.label,
+      style: `left:${100 * z.x / z.refW}%;top:${100 * z.y / z.refH}%;width:${100 * z.w / z.refW}%;height:${100 * z.h / z.refH}%` })));
+  return el('details', {}, el('summary', { text: 'Check the safe area' }), frame,
+    el('p', { class: 'hint', text: zones.map(z => (z.type === 'safe' ? 'Keep text inside the dashed line (' : 'Keep clear of the red box (') + z.label + ')').join('. ') + '. Check by eye; the tool cannot see text.' }));
+}
+
+// A few plain settings per file. Most people never open this.
+function settingsPanel(f) {
+  const c = S.custom[f.key] || {}, s = f.desc.settings, isCustom = f.members.some(p => p.custom);
+  const set = (k, v) => { const x = { ...(S.custom[f.key] || {}) }; if (v === undefined) delete x[k]; else x[k] = v; S.custom[f.key] = x; delete S.results[f.key]; replan(); };
+  const select = (label, value, options, onchange) => {
+    const sel = el('select', {}, options.map(([v, t]) => el('option', { value: v, text: t })));
+    sel.value = value; sel.addEventListener('change', () => onchange(sel.value));
+    return el('label', {}, label, sel);
   };
-}
-
-// One plain sentence describing what the placement's file will be.
-function presetSummary(p) {
-  const s = p.settings;
-  const kind = s.vcodec === 'prores' ? 'a ProRes MOV file (large)' : `an ${s.container.toUpperCase()} file (H.264)`;
-  const size = s.width && s.height ? `${s.width} x ${s.height}` : 'the same picture size as your video';
-  const lm = p.loudness?.mode;
-  const vol = lm === 'max' ? ', with the volume checked against the placement\'s limits (turned down only if too loud)'
-    : lm && lm !== 'off' ? ', with the volume set automatically to the placement\'s level' : '';
-  const af = p.spec?.allowedFps;
-  const rate = af?.length ? ` at your video's own frame rate if it is ${af.map(fmtFps).join(' or ')} fps (otherwise the closest of those)` : ` at your video's own frame rate`;
-  return `You'll get ${kind}, ${size},${rate}${vol}.`;
-}
-
-// Ticks changed: work out which files are needed. A file keeps its name and any
-// changed settings while the same placements are still in it.
-function onTick(p, on) {
-  const isCustom = (id) => state.config.presets.find(x => x.id === id)?.custom;
-  if (on && p.custom) state.ticked = [p.id];                                   // Custom stands alone
-  else if (on) state.ticked = state.ticked.filter(id => !isCustom(id)).concat(p.id);
-  else state.ticked = state.ticked.filter(id => id !== p.id);
-  for (const t of document.querySelectorAll('.tile')) {
-    const on = state.ticked.includes(t.dataset.id);
-    t.classList.toggle('on', on); t.setAttribute('aria-pressed', String(on));
+  const fields = [];
+  if (isCustom) {
+    fields.push(select('File type', `${s.container}-${s.vcodec}${s.vcodec === 'prores' ? '-' + s.proresProfile : ''}`,
+      [['mp4-h264', 'MP4 (H.264)'], ['mov-h264', 'MOV (H.264)'], ['mov-prores-422', 'ProRes 422 MOV'], ['mov-prores-hq', 'ProRes 422 HQ MOV']],
+      (v) => { const F = S.cfg.formats[v.replace(/-(422|hq)$/, '-$1')] || S.cfg.formats[v];
+        const x = { ...(S.custom[f.key] || {}), container: F.container, vcodec: F.vcodec, acodec: F.acodec, proresProfile: F.proresProfile || 'hq', faststart: F.faststart, stripEditLists: F.stripEditLists };
+        S.custom[f.key] = x; replan(); }));
   }
-  onTicks();
-}
-
-function onTicks() {
-  saveActiveName();
-  const old = state.groups;
-  const sameMembers = (a, b) => a.members.map(m => m.id).join() === b.members.map(m => m.id).join();
-  state.groups = buildGroups(state.config, state.ticked).map(g => {
-    const prev = old.find(o => o.key === g.key && sameMembers(o, g));
-    if (prev) return { ...g, defaults: prev.defaults, settings: prev.settings, customize: prev.customize, name: prev.name };
-    const defaults = defaultsFor(g.preset);
-    const settings = { ...defaults };
-    settings.noiseOn = raisesFps(settings);
-    return { ...g, defaults, settings, customize: false, name: old.find(o => o.key === g.key)?.name ?? '' };
-  });
-  fillDefaultNames(false);
-  const n = state.groups.length;
-  $('files-area').classList.toggle('hidden', !n);
-  $('active-file').classList.toggle('hidden', !n);
-  $('none-ticked').classList.toggle('hidden', !!n);
-  $('files-head').textContent = n === 1 ? 'You need 1 file' : `You need ${n} files`;
-  if (!n) { useFallback(); return; }
-  setActive(Math.min(state.active, n - 1), false);
-}
-
-// Nothing ticked: the automatic check still runs, with general checks only.
-function useFallback() {
-  const p = state.config.presets.find(x => x.custom);
-  state.preset = p; state.defaults = defaultsFor(p); state.settings = { ...state.defaults }; state.customize = false;
-  update();
-  if (state.analysis) renderPreflight();
-}
-
-// File names start from the video's name. With several files, each gets a short tag
-// (for example _STREAM) so they do not overwrite each other.
-function fillDefaultNames(force) {
-  const n = state.groups.length;
-  for (const g of state.groups) {
-    if (!force && g.name) continue;
-    g.name = state.baseName ? (n > 1 && g.tag ? `${state.baseName}_${g.tag}` : state.baseName) : '';
+  const rates = ['23.976', '24', '25', '29.97', '30', '50', '59.94', '60'];
+  fields.push(select('Frame rate', c.fps ?? 'native', [['native', f.rules.frameRates ? 'Automatic (an accepted rate)' : 'Keep your video\'s rate'], ...rates.map(r => [r, r + ' fps'])],
+    (v) => set('fps', v === 'native' ? undefined : v)));
+  if (s.vcodec === 'h264') {
+    const inp = el('input', { type: 'number', min: '500', max: '100000', step: '100', value: String(s.bitrateKbps) });
+    inp.addEventListener('change', () => set('bitrateKbps', Number(inp.value) || undefined));
+    fields.push(el('label', {}, 'Video bitrate (kbps)', inp));
   }
+  fields.push(select('Light grain', c.noiseOn == null ? 'auto' : c.noiseOn ? 'on' : 'off', [['auto', 'Automatic'], ['on', 'On'], ['off', 'Off']],
+    (v) => set('noiseOn', v === 'auto' ? undefined : v === 'on')));
+  const loudNow = c.loudMode == null ? 'plan' : c.loudMode === 'off' ? 'off' : `${c.loudMode}:${c.loudTarget}:${c.loudPeak}`;
+  const loudOpts = [['plan', f.rules.loudness ? 'As the placement asks' : 'Leave as it is (no rule given)'], ['off', 'Leave as it is']];
+  if (isCustom || !f.rules.loudness) loudOpts.push(['lufs:-24:-2', 'Broadcast: -24 LKFS'], ['lufs:-14:-1', 'Streaming: -14 LUFS'], ['max:-12:-8', 'Cinema limits: -12 dB average, -8 dB peak']);
+  fields.push(select('Sound level', loudNow, loudOpts, (v) => {
+    const x = { ...(S.custom[f.key] || {}) };
+    delete x.loudMode; delete x.loudTarget; delete x.loudPeak;
+    if (v === 'off') x.loudMode = 'off';
+    else if (v !== 'plan') { const [mode, tg, pk] = v.split(':'); Object.assign(x, { loudMode: mode, loudTarget: +tg, loudPeak: +pk }); }
+    S.custom[f.key] = x; delete S.results[f.key]; replan();
+  }));
+  const changed = Object.keys(c).length;
+  return el('details', { open: changed && isCustom ? true : null }, el('summary', { text: isCustom ? 'Choose the settings' : 'Change settings' + (changed ? ' (changed)' : '') }),
+    el('div', { class: 'settings' }, fields,
+      el('p', { class: 'hint', text: isCustom ? 'Custom files are checked against these settings only.' : 'Changing these can take the file outside a placement\'s spec. The report afterwards shows the result.' }),
+      changed ? el('button', { type: 'button', class: 'ghost small', text: 'Undo my changes', onclick: () => { delete S.custom[f.key]; delete S.results[f.key]; replan(); } }) : null));
 }
 
-function saveActiveName() { const g = state.groups[state.active]; if (g && !state.nameOverride) g.name = $('outname').value; }
-
-// Show one file in the editing area below the cards.
-function setActive(i, save = true) {
-  const g = state.groups[i]; if (!g) return;
-  if (save) saveActiveName();
-  state.active = i;
-  state.preset = g.preset; state.defaults = g.defaults; state.settings = g.settings; state.customize = g.customize;
-  const p = state.preset, n = state.groups.length;
-  $('active-title').textContent = (n > 1 ? `File ${i + 1} of ${n}: ` : '') + (p.custom ? 'Custom settings' : g.label);
-  $('preset-status').replaceChildren(p.custom ? '' : p.status === 'verified'
-    ? el('span', { class: 'tag ok', text: 'VERIFIED ' + (p.verifiedDate || '') })
-    : el('span', { class: 'tag warn', text: 'SPEC NOT YET CONFIRMED', title: 'These values come from research and have not been confirmed with the placement.' }));
-  $('preset-summary').textContent = p.custom ? 'Choose the settings below. Start from the basics; the expert settings are rarely needed.'
-    : (g.members.length > 1 ? `One file for ${p.name}. ` : '') + presetSummary(p);
-  $('preset-notes').replaceChildren(...[...(p.notes || []), ...(p.loudness?.note ? ['Volume: ' + p.loudness.note] : [])].map(t => el('li', { text: t })));
-  $('preset-source').textContent = 'Source: ' + (p.source?.label || 'none') + (p.source?.url ? ' · ' + p.source.url : '') + (p.verifiedDate ? ' · last verified ' + p.verifiedDate : '');
-  $('outname').value = g.name;
-  buildSettingsForm(); showAdvanced(); update();
-  if (state.analysis) renderPreflight(); // redraw the checklist and safe-zone guides for this file
-}
-
-// Run fn as if file g were the active one (used to check every file, not just the shown one).
-function withGroup(g, fn) {
-  const keep = { preset: state.preset, settings: state.settings, defaults: state.defaults, nameOverride: state.nameOverride };
-  state.preset = g.preset; state.settings = g.settings; state.defaults = g.defaults; state.nameOverride = g.name;
-  try { return fn(); } finally { Object.assign(state, keep); }
-}
-
-// Card for each file: what it is, which placements it covers, and how it looks so far.
-function renderCards(evals) {
-  const cards = state.groups.map((g, i) => {
-    const e = evals[i];
-    const bad = e.w.filter(x => x.level === 'bad').length + e.checks.filter(c => c[0] === 'bad').length;
-    const warn = e.w.filter(x => x.level === 'warn').length + e.checks.filter(c => c[0] === 'warn').length;
-    let st, cls;
-    if (!state.src) { st = 'Drop your video to check it'; cls = ''; }
-    else if (bad) { st = `✕ ${bad} problem${bad > 1 ? 's' : ''}`; cls = 'bad'; }
-    else if (warn) { st = `! ${warn} thing${warn > 1 ? 's' : ''} to look at`; cls = 'warn'; }
-    else if (!state.analysis) { st = 'Checking your video...'; cls = ''; }
-    else { st = '✓ Looks ready'; cls = 'ok'; }
-    const card = el('div', { class: 'card' + (i === state.active ? ' active' : ''), role: 'button', tabindex: '0', title: 'Show this file' },
-      el('div', { class: 'num', text: `File ${i + 1}` }),
-      el('b', { text: g.preset.custom ? 'Custom settings' : g.label }),
-      el('div', { class: 'for', text: 'For: ' + g.members.map(m => m.name).join(', ') }),
-      el('div', { class: 'st ' + cls, text: st }));
-    const go = () => { if (!state.running && i !== state.active) setActive(i); };
-    card.addEventListener('click', go);
-    card.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); go(); } });
-    return card;
-  });
-  $('file-cards').replaceChildren(...cards);
-}
-
-// The technical settings are hidden unless Custom is chosen or the user asks for them.
-function showAdvanced() {
-  const on = !!(state.preset.custom || state.customize);
-  $('advanced').classList.toggle('hidden', !on);
-  $('customize-row').classList.toggle('hidden', !!state.preset.custom);
-  $('btn-customize').textContent = state.customize ? 'Hide the technical settings' : 'Change the technical settings';
-}
-
-// ---------- warnings and readiness ----------
-function currentFileName() {
-  return ((state.nameOverride ?? $('outname').value).trim()) + '.' + state.settings.container;
-}
-
-function computeWarnings() {
-  const out = []; const s = state.settings, spec = state.preset.spec, src = state.src;
-  const add = (level, text, block = false) => out.push({ level, text, block });
-
-  // choices that cannot work together
-  if (s.vcodec === 'prores' && s.container === 'mp4') add('bad', 'ProRes cannot be stored in an MP4. Choose MOV.', true);
-  if (s.acodec === 'pcm' && s.container === 'mp4') add('bad', 'Uncompressed PCM audio is not supported in MP4 here. Choose MOV or AAC audio.', true);
-  const nm = (state.nameOverride ?? $('outname').value).trim();
-  if (!nm) { if (state.src) add('bad', 'Type a file name.', true); }
-  else if (/[\\/:*?"<>|]/.test(nm)) add('bad', 'The file name contains characters that are not allowed: \\ / : * ? " < > |', true);
-  const rule = checkName(currentFileName(), state.preset.naming);
-  $('name-rule').textContent = state.preset.naming?.note || '';
-  if (rule && !rule.ok) add('warn', `File name does not meet this preset's rule (${rule.expected}): ${rule.actual}.`);
-
-  if (!src) return out;
-  const v = src.video;
-  if (!v) { add('bad', 'No video was found in this file.', true); return out; }
-
-  if (spec.audioRequired && !src.audio) add('bad', 'This placement requires audio, but the source file has no audio track.', true);
-  if (!src.audio && !spec.audioRequired) add('info', 'Your video has no sound. The new file will have none either.');
-
-  const t = targetFormat(s, src);
-  // The output keeps the uploaded shape (see targetFormat), so shape never blocks.
-  if (t.scales) add(t.w > v.width ? 'warn' : 'info', `Resolution will be changed from ${v.width}x${v.height} to ${t.w}x${t.h}${t.w > v.width ? ' (upscaling reduces sharpness)' : ''}.`);
-  if (spec.minShortEdge && Math.min(t.w, t.h) < spec.minShortEdge) add('warn', `The short edge is ${Math.min(t.w, t.h)} px; this placement wants at least ${spec.minShortEdge} px.`);
-
-  if (t.raises) add('warn', `The frame rate will be raised from ${fmtFps(v.fps)} to ${fmtFps(t.fps)} fps, which repeats some frames. Light grain is switched on to hide the repeats. Disney+ and Rogers may still reject a raised frame rate.`);
-  if (spec.allowedFps && !spec.allowedFps.some(f => Math.abs(f - t.fps) / f < 0.0005))
-    add('warn', `This placement accepts ${spec.allowedFps.map(fmtFps).join(', ')} fps, but the file would be ${fmtFps(t.fps)} fps because of the frame rate chosen under "Change the technical settings".`);
-  if (v.cfrLikely === false) add('warn', 'The source looks like variable frame rate. The output is forced to constant frame rate, which can repeat or drop frames.');
-  if (!['progressive', 'unknown', ''].includes(v.fieldOrder)) add('warn', `The source is interlaced (${v.fieldOrder}). This tool does not deinterlace. Deinterlace first for placements that need progressive.`);
-  if (s.tagBt709 && v.colorSpace && v.colorSpace !== 'bt709') add('warn', `The source colour space is "${v.colorSpace}". Tagging the output BT.709 only changes the label, it does not convert the colours.`);
-  if (v.sar && v.sar !== '1:1' && v.sar !== '0:1') add('warn', `The source has non-square pixels (${v.sar}).`);
-
-  if (spec.maxDurationSec && src.durationSec > spec.maxDurationSec + state.config.strictness.durationToleranceSec) add('warn', `The source is ${src.durationSec.toFixed(1)} s long; ${spec.maxDurationBy || 'this placement'} allows ${spec.maxDurationSec} s.`);
-  if (spec.minDurationSec && src.durationSec < spec.minDurationSec - state.config.strictness.durationToleranceSec) add('warn', `The source is ${src.durationSec.toFixed(1)} s long; ${spec.minDurationBy || 'this placement'} needs at least ${spec.minDurationSec} s.`);
-  if (s.vcodec === 'h264' && ((spec.minKbps != null && s.bitrateKbps < spec.minKbps) || (spec.maxKbps != null && s.bitrateKbps > spec.maxKbps)))
-    add('warn', `The video bitrate (${s.bitrateKbps} kbps) is outside this placement's range (${spec.minKbps ?? 0} to ${spec.maxKbps ?? 'no limit'} kbps).`);
-
-  // size estimate and memory guard
-  const est = estimateOutputBytes(s, t.w, t.h, t.fps, (spotLength(outDuration(src, t), t.fps, state.config.spotLengths)?.exactSec || outDuration(src, t)) + (s.tailBlackSec > 0 ? s.tailBlackSec : 0));
-  const estMB = est / 1048576, lim = state.config.limits;
-  $('est').textContent = 'Estimated output: about ' + fmtBytes(est) + (s.vcodec === 'prores' ? ' (upper estimate)' : '');
-  if (estMB >= lim.memoryBlockMB) add('bad', `The output is expected to be about ${fmtBytes(est)}. That is more than this browser tool can safely handle (limit ${lim.memoryBlockMB} MB) and the tab would likely crash. Use H.264, a shorter clip, or desktop encoding software.`, true);
-  else if (estMB >= lim.memoryWarnMB) add('warn', `The output is expected to be large (about ${fmtBytes(est)}). It may fail on computers with 8 GB of memory. Close other tabs and programs first.`);
-  else if (navigator.deviceMemory && navigator.deviceMemory <= 4 && estMB > 300) add('warn', 'This computer reports very little memory; a large output may fail.');
-  if (src.durationSec > 120) add('info', `This clip is ${fmtTime(src.durationSec)} long. Encoding in the browser is slow (often several times the clip length), so expect a long wait.`);
-  if (state.file && state.file.size > 2 * 1073741824 && navigator.deviceMemory && navigator.deviceMemory <= 4) add('warn', 'This is a very large source file and this computer reports little memory. It may fail.');
-  if (s.loudMode !== 'off' && !src.audio) add('info', 'Volume leveling is set but your video has no sound, so it will be skipped.');
-  if (spec.maxSizeMB && estMB > spec.maxSizeMB) add('warn', `The estimated size (${fmtBytes(est)}) is over this placement's limit of ${spec.maxSizeMB} MB.`);
-  return out;
-}
-
-function update() {
-  const n = state.groups.length;
-  if (!n) {
-    $('warnings').replaceChildren();
-    $('btn-encode').disabled = true; $('btn-encode').textContent = 'Make the file';
-    $('btn-check').disabled = true;
-    $('est').textContent = state.src ? 'Tick a placement in step 2 first.' : '';
-    $('file-cards').replaceChildren();
-    return;
-  }
-  // Check the other files first, then the shown one (so its size estimate and name rule are displayed).
-  const evaluate = () => ({ w: computeWarnings(), checks: state.analysis ? plainChecklist() : [] });
-  const evals = state.groups.map((g, i) => (i === state.active ? null : withGroup(g, evaluate)));
-  evals[state.active] = evaluate();
-  const w = evals[state.active].w;
-  if (n > 1 && state.src) { // names are filled in once a video is dropped
-    const names = state.groups.map((g, i) => (i === state.active ? currentFileName() : withGroup(g, currentFileName)).toLowerCase());
-    const mine = names[state.active];
-    if (names.filter(x => x === mine).length > 1) w.push({ level: 'bad', text: 'Another file has the same name. Give each file its own name so one does not replace the other.', block: true });
-  }
-  $('warnings').replaceChildren(...w.map(x => el('div', { class: 'msg ' + x.level, text: x.text })));
-  const blocked = evals.some(e => e.w.some(x => x.block));
-  $('btn-encode').disabled = !state.src || blocked || state.running;
-  $('btn-encode').textContent = n > 1 ? `Make the ${n} files` : 'Make the file';
-  $('btn-check').disabled = !state.src || state.running;
-  renderCards(evals);
-  $('outext').textContent = '.' + state.settings.container;
-  if (!state.src) $('est').textContent = '';
-  updateGrain();
-}
-
-// "Add light grain" is shown only when it can help: the frame rate is being
-// changed, or the automatic check found repeated frames. Off unless switched on.
-// True when the chosen frame rate is higher than the source's, which repeats frames.
-function raisesFps(s = state.settings) {
-  if (!state.src) return false;
-  const t = targetFormat(s, state.src);
-  return t.raises;
-}
-
-function updateGrain() {
-  const s = state.settings, src = state.src;
-  const converts = raisesFps();
-  const d = state.analysis?.video?.dups;
-  const repeats = !!d && d.percent > state.config.strictness.dupPassPercent;
-  $('grain-row').classList.toggle('hidden', !(converts || repeats || s.noiseOn));
-  $('grain').checked = !!s.noiseOn;
-  let why;
-  if (converts) why = 'Switched on because the frame rate is being raised, which repeats frames. ';
-  else if (d?.conversion) why = 'Your video already has a repeated frame every few frames, a sign it was converted from another frame rate. Grain hides exact repeats, but Disney+ and similar checks may still reject it. A native-frame-rate export from the editor is the real fix. ';
-  else if (repeats) why = `Your video has repeated frames (${d.percent.toFixed(1)}% of frames, longest ${d.longestRunSec.toFixed(1)} s, for example a held end card). Tick this if the placement rejects repeated frames. `;
-  else why = '';
-  $('grain-why').textContent = why + `Grain strength ${s.noiseStrength}: barely visible on flat colour, invisible on normal footage. The finished file is re-checked for repeats.`;
-}
-
-// ---------- source intake ----------
-function setupDrop() {
-  const drop = $('drop'), input = $('file');
-  drop.addEventListener('click', () => input.click());
-  input.addEventListener('change', () => input.files[0] && loadFile(input.files[0]));
-  ['dragenter', 'dragover'].forEach(e => drop.addEventListener(e, (ev) => { ev.preventDefault(); drop.classList.add('over'); }));
-  ['dragleave', 'drop'].forEach(e => drop.addEventListener(e, (ev) => { ev.preventDefault(); drop.classList.remove('over'); }));
-  drop.addEventListener('drop', (ev) => {
-    const files = ev.dataTransfer.files;
-    if (files.length > 1) { showError('One file at a time, please. Using the first one: ' + files[0].name); }
-    if (files[0]) loadFile(files[0]);
-  });
-}
-
-async function loadFile(file) {
-  if (state.running) return;
-  clearResult(); showError('');
-  if (!/\.(mov|mp4|m4v)$/i.test(file.name) && !/^video\//.test(file.type)) {
-    showError('This does not look like a video file (' + file.name + '). Use a MOV or MP4.'); return;
-  }
-  if (file.size === 0) { showError('This file is empty (0 bytes). If it lives in a cloud-synced folder, make sure it has finished downloading.'); return; }
-  state.file = file; state.src = null; state.analysis = null; $('check-area').classList.add('hidden'); update();
-  $('source-status').textContent = 'Reading ' + file.name + '...';
-  try {
-    placeProgress('source'); // reading the file belongs to step 1
-    await ensureEngine(1, 1, 'loading the checker', '');
-    showProgress('Checking your video: reading the file', null);
-    state.srcProbe = await engine.probe(file);
-    state.src = summarize(state.srcProbe);
-    if (!state.src.video) throw new Error('No video track was found in this file.');
-  } catch (e) {
-    hideProgress(); state.src = null; update();
-    $('source-status').textContent = '';
-    showError(friendlyError(e));
-    return;
-  }
-  hideProgress();
-  $('source-status').textContent = file.name + ' (' + fmtBytes(file.size) + ')';
-  renderSourceDetails();
-  // default output names: the source name, cleaned up (plus a tag per file when there are several)
-  state.baseName = file.name.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80);
-  fillDefaultNames(true);
-  for (const g of state.groups) g.settings.noiseOn = raisesFps(g.settings);
-  if (state.groups.length) $('outname').value = state.groups[state.active].name;
-  update();
-  onPreflight(); // the automatic check runs straight away
-}
-
-function renderSourceDetails() {
-  const s = state.src, v = s.video, a = s.audio;
-  const rows = [
-    ['File size', fmtBytes(state.file.size)],
-    ['Container', s.container.toUpperCase()],
-    ['Duration', s.durationSec.toFixed(2) + ' s'],
-    ['Video codec', v.codec + (v.profile ? ' (' + v.profile + ')' : '')],
-    ['Resolution', `${v.width} x ${v.height} (${aspectLabel(v.width, v.height)})`],
-    ['Frame rate', fmtFps(v.fps) + ' fps' + (v.cfrLikely === false ? ' (possibly variable)' : v.cfrLikely ? ' (constant)' : '')],
-    ['Scan type', v.fieldOrder === 'unknown' ? 'progressive (not flagged interlaced)' : v.fieldOrder],
-    ['Video bitrate', fmtKbps(v.kbps) + (v.kbpsEstimated ? ' (estimated)' : '')],
-    ['Pixel format', v.pixFmt + (v.bitDepth ? ', ' + v.bitDepth + '-bit' : '')],
-    ['Colour tags', [v.colorSpace, v.colorPrimaries, v.colorTransfer].filter(Boolean).join(' / ') || 'none'],
-    ['Audio', a ? `${a.codec}, ${a.sampleRate / 1000} kHz, ${a.channels} ch` + (a.kbps ? ', ' + Math.round(a.kbps) + ' kbps' : '') : 'none'],
-    ['Tracks', `${s.videoCount} video, ${s.audioCount} audio` + (s.otherCount ? `, ${s.otherCount} other (ignored)` : '')]
-  ];
-  $('source-details').replaceChildren(...rows.map(([k, val]) => el('div', {}, el('span', { text: k }), el('b', { text: val }))));
+function updateMake(problems) {
+  const n = S.files.length;
+  $('make').hidden = !n;
+  if (!n) return;
+  const outs = S.files.reduce((k, f) => k + (f.slots?.length || 1), 0);
+  const blocked = S.files.some(f => f.desc.blocked) || [...problems.values()].flat().some(x => x.level === 'bad');
+  const ready = S.video?.src && S.video.analysis && !blocked && !S.running;
+  const btn = $('btn-make');
+  btn.disabled = !ready;
+  btn.textContent = n === 1 ? (outs > 1 ? `Make the file (${outs} copies)` : 'Make the file') : `Make the ${n} files`;
+  const total = S.files.reduce((k, f) => k + (f.desc.estBytes || 0) * (f.slots?.length || 1), 0);
+  $('make-note').textContent = !S.video?.src ? 'Drop your video in step 1 first.'
+    : !S.video.analysis ? 'Waiting for the check of your video to finish.'
+    : blocked ? 'Fix the items marked with a cross first.'
+    : S.running ? 'Keep this tab open and in front while the files are made.'
+    : `About ${fmtBytes(total)} in total. You choose where to save ${outs === 1 ? 'it' : 'them'} next.`;
+  $('btn-cancel').hidden = !S.running;
 }
 
 // ---------- progress ----------
-let progTimer = null, progStart = 0;
-function showProgress(step, ratio) {
-  $('progress').classList.remove('hidden');
-  $('step').textContent = step;
-  const bar = $('bar');
-  bar.classList.toggle('indet', ratio == null);
-  bar.firstElementChild.style.width = ratio == null ? '' : Math.round(ratio * 100) + '%';
-  $('pct').textContent = ratio == null ? '' : Math.round(ratio * 100) + '%';
-}
-function startClock() {
-  progStart = performance.now(); clearInterval(progTimer);
-  progTimer = setInterval(() => { $('elapsed').textContent = 'Elapsed ' + fmtTime((performance.now() - progStart) / 1000); }, 500);
-}
-// The progress bar, its Cancel button and any error sit under the step doing the work:
-// step 1 while your video is being checked, step 3 while files are being made.
-function placeProgress(where) {
-  const anchor = where === 'source' ? $('source-status') : $('keepopen');
-  anchor.after($('progress'));
-  $('progress').after($('error'));
-}
-function hideProgress() { clearInterval(progTimer); $('progress').classList.add('hidden'); $('eta').textContent = ''; $('elapsed').textContent = ''; }
-
-async function ensureEngine(stepNo, total, label, word = 'Step') {
-  if (engine.ready) return;
-  startClock();
-  // word '' = no numbering ("Checking your video: loading the checker")
-  const head = word ? `${word} ${stepNo} of ${total}: ${label}` : `Checking your video: ${label}`;
-  showProgress(`${head} (first visit downloads about 31 MB, then it is cached)`, null);
-  await engine.load((got, tot, cached) => {
-    if (tot) showProgress(`${head}${cached ? ' (from cache)' : ''}`, got / tot);
-  });
-}
-
-// ---------- encode ----------
-const MIME = { mp4: 'video/mp4', mov: 'video/quicktime' };
-
-async function onEncode() {
-  if (state.running || !state.groups.length) return;
-  saveActiveName();
-  const n = state.groups.length;
-  placeProgress('encode'); clearResult(); showError('');
-
-  // Ask where to save BEFORE the long encode (needs a click; Chrome/Edge only).
-  // One file: a "Save as" box. Several files: choose a folder once.
-  const target = { handle: null, dir: null };
-  if (!window.__testSink && n === 1 && window.showSaveFilePicker) {
-    const s = state.settings;
-    try {
-      target.handle = await window.showSaveFilePicker({ suggestedName: currentFileName(), types: [{ description: 'Video', accept: { [MIME[s.container]]: ['.' + s.container] } }] });
-    } catch (e) {
-      if (e.name === 'AbortError') { showError('No save location chosen, so nothing was encoded.'); return; }
-    }
-  } else if (!window.__testSink && n > 1 && window.showDirectoryPicker) {
-    try {
-      target.dir = await window.showDirectoryPicker({ mode: 'readwrite' });
-      const names = state.groups.map(g => withGroup(g, currentFileName));
-      const existing = [];
-      for (const nm of names) { try { await target.dir.getFileHandle(nm); existing.push(nm); } catch (e) { /* not there yet */ } }
-      if (existing.length && !window.confirm('These files are already in that folder and would be replaced:\n\n' + existing.join('\n') + '\n\nReplace them?')) {
-        showError('Nothing was made. Choose another folder or change the file names.'); return;
-      }
-    } catch (e) {
-      if (e.name === 'AbortError') { showError('No folder chosen, so nothing was made.'); return; }
-      target.dir = null; // fall back to normal browser downloads
-    }
-  }
-
-  state.running = true; update();
-  $('btn-cancel').classList.remove('hidden'); $('btn-encode').classList.add('hidden');
-  try {
-    for (let i = 0; i < n && !state.cancelled; i++) {
-      setActive(i); // show the settings of the file being made
-      await encodeOne(i, n, target);
-    }
-  } catch (e) {
-    hideProgress();
-    if (!state.cancelled) showError((n > 1 ? `File ${state.active + 1} of ${n} could not be made. ` : '') + friendlyError(e));
-  } finally {
-    state.running = false; state.cancelled = false;
-    $('btn-cancel').classList.add('hidden'); $('btn-encode').classList.remove('hidden'); update();
-  }
-}
-
-async function encodeOne(i, n, target) {
-  const s = state.settings, outFile = currentFileName(), memName = 'out.' + s.container;
-  const pre = n > 1 ? `File ${i + 1} of ${n}, ` : '';
-  // The steps shown to the user depend on what was asked for.
-  const leveling = s.loudMode !== 'off' && !!state.src.audio;
-  const steps = ['Loading the encoder'];
-  if (leveling) steps.push('Measuring audio levels');
-  steps.push('Encoding video', 'Checking the result', 'Saving the file');
-  const label = (name) => `${pre}Step ${steps.indexOf(name) + 1} of ${steps.length}: ${name}`;
-  const dur = state.src.durationSec;
-  await ensureEngine(1, steps.length, 'Loading the encoder');
-  const path = await engine.mountForEncode(state.file); // (re)mount: a cancel drops the old mount
-  startClock();
-
-  // Audio leveling: measure first, then build the filter.
-  let audioFilter = null, levelInfo = '';
-  if (leveling) {
-    const timer = timedProgress(label('Measuring audio levels'), dur);
-    ({ filter: audioFilter, info: levelInfo } = await planLeveling(engine, path, s, timer));
-  }
-
-  const tfE = targetFormat(s, state.src);
-  const spot = spotLength(outDuration(state.src, tfE), tfE.fps, state.config.spotLengths);
-  const { args, notes } = buildArgs(s, state.src, path, memName, { audioFilter, spot });
-  if (tfE.conform) notes.push(`Frame rate changed from ${fmtFps(state.src.video.fps)} to ${fmtFps(tfE.fps)} fps by playing every frame ${tfE.fps < state.src.video.fps ? '0.1% slower' : '0.1% faster'}: no frames dropped or repeated.`);
-  else if (tfE.lowers) notes.push(`Frame rate changed from ${fmtFps(state.src.video.fps)} to ${fmtFps(tfE.fps)} fps by dropping frames evenly.`);
-  else if (tfE.raises) notes.push(`Frame rate raised from ${fmtFps(state.src.video.fps)} to ${fmtFps(tfE.fps)} fps, which repeats some frames.`);
-  if (spot) notes.push(spotNote(spot, outDuration(state.src, tfE)));
-  if (s.tailBlackSec > 0) notes.push(`${s.tailBlackSec} seconds of black and silence were added at the end.`);
-  if (levelInfo) notes.push(levelInfo);
-  if (s.noiseOn) notes.push(`Light grain was added (strength ${s.noiseStrength}).`);
-  await engine.encode(args, timedProgress(label('Encoding video'), dur));
-
-  // Measure the finished file while it is still inside the encoder.
-  const tf = targetFormat(s, state.src);
-  const extra = {};
-  const stepName = label('Checking the result');
-  if (leveling) { showProgress(stepName + ' (audio levels)', null); extra.audio = await measureAudio(engine, memName); }
-  if (s.dupCheck) extra.video = await scanVideo(engine, memName, tf.fps, state.config.strictness.dupDiffThreshold, s.vcodec === 'prores' ? (s.proresProfile === '4444' ? 12 : 10) : 8, timedProgress(stepName + ' (frames)', dur));
-
-  // Pull the finished file out of the encoder, wrap it in a Blob (the browser
-  // can keep big Blobs on disk), and let the probe instance check it.
-  showProgress(stepName, null); $('eta').textContent = '';
-  let data = await engine.takeOutput(memName);
-  const blob = new Blob([data], { type: MIME[s.container] });
-  data = null;
-  const outSummary = summarize(await engine.probe(blob, '.' + s.container));
-  outSummary.sizeBytes = blob.size; // real size of what will be saved
-
-  showProgress(label('Saving the file'), null);
-  const handle = target.dir ? await target.dir.getFileHandle(outFile, { create: true }) : target.handle;
-  const saved = await saveOutput(blob, outFile, handle);
-  if (target.dir) saved.note = 'Saved in the folder you chose.';
-
-  hideProgress();
-  const source = { ...state.src, dupPercent: state.analysis?.video?.dups?.percent, conversion: state.analysis?.video?.dups?.conversion };
-  const rows = verify(outSummary, s, state.preset, { source, fileName: outFile, strictness: state.config.strictness, extra, spot, tail: s.tailBlackSec > 0 ? s.tailBlackSec : 0 });
-  showResult((n > 1 ? `File ${i + 1} of ${n}: ` : 'Encoded: ') + outFile, rows, notes, saved.note, saved.url ? { url: saved.url, name: outFile } : null);
-}
-
-// Plain-language line about trimming or padding to a standard spot length.
-function spotNote(spot, srcSec) {
-  const base = `Made exactly ${spot.seconds} seconds (${spot.frames} frames).`;
-  if (spot.cut) return `${base} The video was ${srcSec.toFixed(2)} s, so the last ${spot.cut.toFixed(2)} s was cut.`;
-  if (spot.pad) return `${base} The video was ${srcSec.toFixed(2)} s, so the last frame was held for ${spot.pad.toFixed(2)} s, with silence.`;
-  return base;
-}
-
-// A progress callback for a pass that reports "seconds of video done".
-function timedProgress(text, duration) {
+function progressBox(where) {
+  const what = el('div', { class: 'what' }), bar = el('div', { class: 'bar' }, el('i')), pct = el('span'), elapsed = el('span'), eta = el('span');
+  const box = el('div', { class: 'progress', role: 'status', 'aria-live': 'polite' }, what, bar, el('div', { class: 'meta' }, pct, elapsed, eta));
+  where.replaceChildren(box);
   const t0 = performance.now();
-  showProgress(text, 0); $('eta').textContent = 'Time left: estimating...';
-  return (sec) => {
-    const r = Math.min(1, sec / duration), e = (performance.now() - t0) / 1000;
-    showProgress(text, r);
-    $('eta').textContent = (r > 0.02 && e > 5) ? 'Time left: about ' + fmtTime(e / r - e) : 'Time left: estimating...';
+  const clock = setInterval(() => { elapsed.textContent = 'Elapsed ' + fmtTime((performance.now() - t0) / 1000); }, 500);
+  let stage0 = 0;
+  return {
+    set(text, ratio) {
+      what.textContent = text;
+      bar.classList.toggle('indet', ratio == null);
+      bar.firstElementChild.style.width = ratio == null ? '' : Math.round(ratio * 100) + '%';
+      pct.textContent = ratio == null ? '' : Math.round(ratio * 100) + '%';
+    },
+    // A callback for passes that report "seconds of video done".
+    timed(text, duration) {
+      const s0 = performance.now(); stage0 = s0; this.set(text, 0); eta.textContent = 'Time left: estimating';
+      return (sec) => {
+        const r = Math.min(1, sec / duration), e = (performance.now() - s0) / 1000;
+        this.set(text, r);
+        eta.textContent = r > 0.02 && e > 5 ? 'Time left: about ' + fmtTime(e / r - e) : 'Time left: estimating';
+      };
+    },
+    noEta() { eta.textContent = ''; },
+    done() { clearInterval(clock); box.remove(); }
   };
 }
 
-// ---------- preflight analysis ----------
-// Reads loudness, duplicate frames, black bars, black frames and interlacing from the
-// source, and grabs three still frames so a person can spot slates or countdowns.
-async function onPreflight() {
-  if (state.running || !state.src) return;
-  state.running = true; update(); placeProgress('source'); showError(''); clearResult();
-  $('btn-cancel').classList.remove('hidden'); $('btn-encode').classList.add('hidden');
-  const src = state.src, total = src.audio ? 4 : 3; let n = 1;
-  const st = state.config.strictness;
+async function ensureEngine(prog) {
+  if (engine.ready) return;
+  prog.set('Loading the encoder (the first visit downloads about 31 MB, then it is kept)', null);
+  await engine.load((got, tot, cached) => { if (tot) prog.set('Loading the encoder' + (cached ? '' : ' (first visit only)'), got / tot); });
+}
+
+// ---------- 1. video ----------
+function setupDrop() {
+  const drop = $('drop'), input = $('file');
+  const pickFile = () => { if (!S.running) input.click(); };
+  drop.addEventListener('click', pickFile);
+  drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickFile(); } });
+  $('vc-replace').addEventListener('click', pickFile);
+  input.addEventListener('change', () => { if (input.files[0]) loadFile(input.files[0]); input.value = ''; });
+  const zone = document.body;
+  ['dragenter', 'dragover'].forEach(e => zone.addEventListener(e, (ev) => { ev.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(e => zone.addEventListener(e, (ev) => { ev.preventDefault(); if (e === 'drop' || ev.target === document.body) drop.classList.remove('over'); }));
+  zone.addEventListener('drop', (ev) => {
+    const files = ev.dataTransfer?.files; if (!files?.length) return;
+    if (files.length > 1) videoMsg('warn', 'One video at a time. Using the first one: ' + files[0].name);
+    loadFile(files[0]);
+  });
+}
+
+function videoMsg(level, text) { $('video-msg').replaceChildren(...(text ? [el('div', { class: 'msg ' + level, text })] : [])); }
+
+async function loadFile(file) {
+  if (S.running) return;
+  videoMsg('', '');
+  if (!/\.(mov|mp4|m4v)$/i.test(file.name) && !/^video\//.test(file.type)) { videoMsg('bad', `${file.name} does not look like a video. Use a MOV or MP4 file.`); return; }
+  if (file.size === 0) { videoMsg('bad', `${file.name} is empty. If it is in a OneDrive or SharePoint folder, wait for it to finish downloading, then try again.`); return; }
+  clearResults();
+  S.video = { file, src: null, analysis: null,
+    baseName: file.name.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80) };
+  S.names = {};
+  $('drop').hidden = true; $('video-card').hidden = false; $('vc-body').hidden = true;
+  $('vc-name').textContent = file.name; $('vc-size').textContent = fmtBytes(file.size);
+  $('vc-facts').replaceChildren(); $('vc-thumbs').replaceChildren(); $('vc-tech').replaceChildren();
+  replan();
+  S.running = true; updateMake(new Map());
+  const prog = progressBox($('vc-progress'));
   try {
-    await ensureEngine(1, total, 'loading the checker', '');
-    const path = await engine.mountForEncode(state.file);
-    startClock();
+    await ensureEngine(prog);
+    prog.set('Reading the file', null);
+    S.video.src = summarize(await engine.probe(file));
+    if (!S.video.src.video) throw new Error('No video picture was found in this file.');
+    renderTech(); replan();
+    const src = S.video.src, st = S.cfg.strictness, path = await engine.mountForEncode(file);
     const analysis = { audio: null, video: null, thumbs: [] };
-    if (src.audio) {
-      showProgress(`Checking your video: measuring the sound`, null);
-      analysis.audio = await measureAudio(engine, path);
-    }
-    analysis.video = await scanVideo(engine, path, src.video.fps, st.dupDiffThreshold, pixDepth(src.video.pixFmt), timedProgress(`Checking your video: looking at every frame`, src.durationSec));
-    showProgress(`Checking your video: grabbing preview frames`, null); $('eta').textContent = '';
+    if (src.audio) { prog.set('Measuring the sound', null); analysis.audio = await measureAudio(engine, path); }
+    analysis.video = await scanVideo(engine, path, src.video.fps, st.dupDiffThreshold, pixDepth(src.video.pixFmt), prog.timed('Looking at every frame', src.durationSec));
+    prog.noEta(); prog.set('Taking three frames to show you', null);
     analysis.thumbs = await grabFrames(engine, path, src.durationSec);
-    state.analysis = analysis;
-    hideProgress(); renderPreflight(); update();
+    S.video.analysis = analysis;
   } catch (e) {
-    hideProgress(); if (!state.cancelled) showError(friendlyError(e));
+    if (!S.cancelled) videoMsg('bad', friendlyError(e));
+    if (!S.video.src) { $('video-card').hidden = true; $('drop').hidden = false; S.video = null; }
   } finally {
-    state.running = false; state.cancelled = false;
-    $('btn-cancel').classList.add('hidden'); $('btn-encode').classList.remove('hidden'); update();
+    prog.done(); S.running = false; S.cancelled = false;
+    if (S.video?.src) renderFacts();
+    replan();
   }
 }
 
-function renderPreflight() {
-  const a = state.analysis, src = state.src, s = state.settings, spec = state.preset.spec, st = state.config.strictness;
-  const rows = []; const add = (label, result, status, note = '') => rows.push([label, result, status, note]);
-  const f1 = (x) => (x == null ? 'n/a' : !isFinite(x) ? '-inf' : x.toFixed(1));
-  const gain = (target, now) => (target - now >= 0 ? '+' : '') + (target - now).toFixed(1) + ' dB';
-  if (!src.audio) add('Audio', 'none', spec.audioRequired ? 'fail' : 'info', spec.audioRequired ? 'This placement requires audio.' : '');
-  else if (a.audio?.silent) add('Audio', 'silent', spec.audioRequired ? 'fail' : 'warn', 'The audio track contains no sound.');
-  else if (a.audio) {
-    const m = a.audio;
-    add('Integrated loudness', f1(m.lufs) + ' LUFS', 'info', `Loudness range ${f1(m.lra)} LU.` + (s.loudMode === 'lufs' ? ` Gain needed to reach ${s.loudTarget} LUFS: ${gain(s.loudTarget, m.lufs)}.` : ''));
-    add('True peak', f1(m.truePeak) + ' dBTP', m.truePeak > -1 ? 'warn' : 'info', m.truePeak > -1 ? 'Very close to full scale. Some placements reject peaks above -1 dBTP.' : '');
-    if (s.loudMode === 'max') add('Average level (RMS)', f1(m.rms) + ' dB', m.rms > s.loudTarget + 0.05 ? 'warn' : 'info',
-      m.rms > s.loudTarget + 0.05 ? `Louder than the ${s.loudTarget} dB limit; it will be turned down ${(m.rms - s.loudTarget).toFixed(1)} dB.` : `Within the ${s.loudTarget} dB limit; the level will be left as it is.`);
-    else add('Average level (RMS)', f1(m.rms) + ' dB', 'info', s.loudMode === 'rms' ? `Gain needed to reach ${s.loudTarget} dB: ${gain(s.loudTarget, m.rms)}.` + (m.samplePeak - m.rms > s.loudPeak - s.loudTarget + 1 ? ` Warning: this audio has ${(m.samplePeak - m.rms).toFixed(1)} dB between average and peak; the target allows only ${(s.loudPeak - s.loudTarget).toFixed(1)} dB, so it cannot be reached without compression.` : '') : '');
-    add('Sample peak', f1(m.samplePeak) + ' dB', 'info');
+function renderFacts() {
+  const v = S.video.src.video, src = S.video.src, a = S.video.analysis, st = S.cfg.strictness;
+  const tc = timecode(src.durationSec, v.fps);
+  const facts = [['Length', `${src.durationSec.toFixed(2)} s (${tc.hms}:${tc.ff})`], ['Picture', `${v.width} x ${v.height}, ${aspectLabel(v.width, v.height)}`], ['Frame rate', fmtFps(v.fps) + ' fps']];
+  if (!src.audio) facts.push(['Sound', 'none']);
+  else if (a?.audio?.silent) facts.push(['Sound', 'silent']);
+  else if (a?.audio) facts.push(['Sound', `average ${a.audio.rms.toFixed(1)} dB, peak ${a.audio.samplePeak.toFixed(1)} dB`]);
+  if (a?.video) {
+    const d = a.video.dups;
+    facts.push(['Repeated frames', d.percent > st.dupPassPercent ? `${d.percent.toFixed(1)}% (longest ${d.longestRunSec.toFixed(1)} s)` : 'none']);
+    facts.push(['Black bars', describeBars(a.video.crop, v.width, v.height, st.barTolerancePx) || 'none']);
+    const ends = describeBlackEnds(a.video.black, src.durationSec);
+    if (ends.start || ends.end) facts.push(['Black frames', [ends.start ? `${ends.start.toFixed(1)} s at the start` : '', ends.end ? `${ends.end.toFixed(1)} s at the end` : ''].filter(Boolean).join(', ')]);
+    if (a.video.idet && a.video.idet.interlacedPercent >= 5) facts.push(['Scan', 'interlaced']);
   }
-  const v = a.video, d = v.dups;
-  add('Duplicate frames', `${d.duplicates} of ${d.frames - 1} (${d.percent.toFixed(1)}%)`, d.percent <= st.dupPassPercent ? 'pass' : d.percent <= st.dupWarnPercent ? 'warn' : 'fail',
-    d.duplicates ? `Longest repeat ${d.longestRun} frames (${d.longestRunSec.toFixed(2)} s). ` + 'Placements that flag repeated frames may reject this. "Add light grain" prevents exact repeats.' : '');
-  const bars = describeBars(v.crop, src.video.width, src.video.height, st.barTolerancePx);
-  add('Black bars', bars || 'none detected', bars ? (spec.noLetterbox ? 'fail' : spec.barsAllowed ? 'info' : 'warn') : 'pass', bars && spec.noLetterbox ? 'This placement does not allow letterboxing or pillarboxing. This must be fixed in the edit.' : '');
-  const ends = describeBlackEnds(v.black, src.durationSec); const bp = [];
-  if (ends.start) bp.push(`${ends.start.toFixed(2)} s at the start`);
-  if (ends.end) bp.push(`${ends.end.toFixed(2)} s at the end`);
-  add('Black frames at start/end', bp.join(', ') || 'none detected', bp.length ? 'warn' : 'pass');
-  if (v.idet) add('Interlacing', v.idet.interlacedPercent < 5 ? 'progressive' : v.idet.interlacedPercent.toFixed(0) + '% interlaced frames', v.idet.interlacedPercent < 5 ? 'pass' : 'warn', v.idet.interlacedPercent < 5 ? '' : 'This tool does not deinterlace.');
-  add('Frame rate type', src.video.cfrLikely === false ? 'possibly variable' : 'constant', src.video.cfrLikely === false ? 'warn' : 'pass', 'Based on the file header. A full frame-by-frame timing check is not done.');
-  add('Slate / countdown', 'check the frames below', 'info', 'These cannot be detected reliably by software. Look at the first frame and the frames near the start and end.');
+  $('vc-facts').replaceChildren(...facts.flatMap(([k, val]) => [el('dt', { text: k }), el('dd', { text: val })]));
+  $('vc-thumbs').replaceChildren(...(a?.thumbs || []).map(t => el('figure', {}, el('img', { src: t.url, alt: t.label }), el('figcaption', { text: t.label }))));
+  $('vc-body').hidden = false;
+}
 
-  if (d.conversion) add('Frame rate conversion pattern', `one repeat every ${d.conversion.every} frames`, 'fail', 'Typical of a file converted from another frame rate (for example 23.976 to 29.97).');
-  const table = el('table', {}, el('thead', {}, el('tr', {}, ...['Check', 'Result', 'Status', 'Note'].map(h => el('th', { text: h })))));
-  const body = el('tbody');
-  for (const [l, r, stt, note] of rows) body.append(el('tr', {}, el('td', { text: l }), el('td', { text: r }), el('td', {}, el('span', { class: 'tag ' + stt, text: stt.toUpperCase() })), el('td', { class: 'note', text: note })));
-  table.append(body);
-  const g = state.groups[state.active], n = state.groups.length;
-  // No placement chosen yet: just describe the video, without judging it.
-  $('checklist').replaceChildren(...(n ? plainChecklist() : videoFacts()).map(checkItem));
-  $('check-hint').classList.toggle('hidden', !!n);
-  if (!n) $('check-head').textContent = 'Your video';
-  else {
-    $('check-head').replaceChildren('Automatic check for ', el('span', { id: 'check-for' }));
-    $('check-for').textContent = state.preset.custom ? 'your settings'
-      : (n > 1 ? `file ${state.active + 1} of ${n} (${g.label}): ` : '') + state.preset.name;
+function renderTech() {
+  const s = S.video.src, v = s.video, a = s.audio;
+  const rows = [['Container', s.container.toUpperCase()], ['Video', v.codec + (v.profile ? ' (' + v.profile + ')' : '') + ', ' + fmtKbps(v.kbps) + (v.kbpsEstimated ? ' (estimated)' : '')],
+    ['Pixels', v.pixFmt + (v.bitDepth ? ', ' + v.bitDepth + '-bit' : '')], ['Frame rate type', v.cfrLikely === false ? 'possibly variable' : 'constant'],
+    ['Colour tags', [v.colorSpace, v.colorPrimaries, v.colorTransfer].filter(Boolean).join(' / ') || 'none'],
+    ['Audio', a ? `${a.codec}, ${a.sampleRate / 1000} kHz, ${a.channels} channels` + (a.kbps ? ', ' + Math.round(a.kbps) + ' kbps' : '') : 'none'],
+    ['Tracks', `${s.videoCount} video, ${s.audioCount} audio` + (s.otherCount ? `, ${s.otherCount} other (ignored)` : '')]];
+  $('vc-tech').replaceChildren(...rows.flatMap(([k, val]) => [el('dt', { text: k }), el('dd', { text: val })]));
+  $('vc-facts').replaceChildren(el('dt', { text: 'Length' }), el('dd', { text: s.durationSec.toFixed(2) + ' s' }), el('dt', { text: 'Picture' }), el('dd', { text: `${v.width} x ${v.height}` }), el('dt', { text: 'Frame rate' }), el('dd', { text: fmtFps(v.fps) + ' fps' }));
+  $('vc-body').hidden = false;
+}
+
+// ---------- making the files ----------
+const MIME = { mp4: 'video/mp4', mov: 'video/quicktime' };
+
+async function onMake() {
+  if (S.running || !S.files.length) return;
+  $('make-msg').replaceChildren();
+  clearResults();
+  const outs = S.files.flatMap(f => f.slots.map(slot => slot.name.trim() + '.' + extOf(f)));
+  // Ask where to save BEFORE the long work (it needs this click). One file: "Save as". Several: a folder.
+  const target = { handle: null, dir: null };
+  if (!window.__testSink && outs.length === 1 && window.showSaveFilePicker) {
+    const ext = extOf(S.files[0]);
+    try { target.handle = await window.showSaveFilePicker({ suggestedName: outs[0], types: [{ description: 'Video', accept: { [MIME[ext]]: ['.' + ext] } }] }); }
+    catch (e) { if (e.name === 'AbortError') { makeMsg('info', 'No save location chosen, so nothing was made.'); return; } }
+  } else if (!window.__testSink && outs.length > 1 && window.showDirectoryPicker) {
+    try {
+      target.dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+      const existing = [];
+      for (const nm of outs) { try { await target.dir.getFileHandle(nm); existing.push(nm); } catch (e) { /* not there */ } }
+      if (existing.length && !window.confirm('These files are already in that folder and would be replaced:\n\n' + existing.join('\n') + '\n\nReplace them?')) { makeMsg('info', 'Nothing was made. Choose another folder or change the names.'); return; }
+    } catch (e) {
+      if (e.name === 'AbortError') { makeMsg('info', 'No folder chosen, so nothing was made.'); return; }
+      target.dir = null; // fall back to normal downloads
+    }
   }
-  // Preview frames, with the preset's documented safe-zone guides drawn on top.
-  const zones = state.preset.safeZones || [];
-  const vw = src.video.width, vh = src.video.height;
-  const usable = zones.filter(z => Math.abs(vw / vh - z.refW / z.refH) / (z.refW / z.refH) < 0.01);
-  const guideBox = el('label', { class: 'check hint', style: 'display:flex;gap:8px;align-items:center;margin-top:14px' });
-  const cb = el('input', { type: 'checkbox' }); cb.checked = state.showZones;
-  cb.addEventListener('change', () => { state.showZones = cb.checked; renderPreflight(); });
-  guideBox.append(cb, 'Show safe-zone guides for this preset');
-  const thumbs = el('div', { style: 'display:flex;gap:12px;flex-wrap:wrap;margin-top:10px' },
-    ...a.thumbs.map(t => {
-      const box = el('div', { style: 'position:relative;overflow:hidden;border-radius:8px;width:300px;background:#000' }, el('img', { src: t.url, style: 'width:100%;display:block', alt: t.label }));
-      if (state.showZones) for (const z of usable) box.append(zoneBox(z));
-      return el('figure', { style: 'margin:0' }, box, el('figcaption', { class: 'hint', text: t.label }));
-    }));
-  let zoneNote;
-  if (!zones.length) zoneNote = 'No safe zone is documented for this preset, so no guides are drawn.';
-  else if (!usable.length) zoneNote = `This preset's guides are for a ${zones[0].refW} x ${zones[0].refH} frame shape, which does not match this source, so they are not drawn.`;
-  else zoneNote = 'Guides: ' + usable.map(z => (z.type === 'safe' ? 'keep content inside the dashed line: ' : 'keep content out of the red box: ') + z.label).join('; ') + '. Check the frames by eye; the tool does not detect content in these areas.';
-  $('preflight-report').replaceChildren(el('h3', { text: 'Measurements' }), table);
-  $('thumbs').replaceChildren(el('h3', { text: 'Look at these frames' }),
-    el('p', { class: 'hint', style: 'margin:0', text: 'Check there is no slate, countdown or colour bars at the start, and nothing important under the guides.' }),
-    ...(zones.length ? [guideBox] : []), thumbs, el('p', { class: 'hint', text: zoneNote }));
-  $('check-area').classList.remove('hidden');
-}
-
-// One checklist line: status icon, main text, optional smaller explanation.
-function checkItem([status, text, more]) {
-  const icon = { ok: '✓', warn: '!', bad: '✕', info: 'i' }[status];
-  return el('li', { class: status }, el('span', { class: 'ic', text: icon }), el('div', {}, text, more ? el('small', { text: more }) : null));
-}
-
-// What the video is, in plain words, before any placement is chosen. No ticks or
-// crosses: nothing is judged until there is a placement to judge it against.
-function videoFacts() {
-  const a = state.analysis, src = state.src, v = src.video, st = state.config.strictness;
-  const out = []; const add = (text, more) => out.push(['info', text, more]);
-  add(`Size: ${v.width} x ${v.height}`);
-  add(`Length: ${src.durationSec.toFixed(2)} seconds`);
-  add(`Frame rate: ${fmtFps(v.fps)} fps`);
-  if (!src.audio) add('Sound: none');
-  else if (a.audio?.silent) add('Sound: the track is silent');
-  else if (a.audio) add(`Sound: average ${a.audio.rms.toFixed(1)} dB, peak ${a.audio.samplePeak.toFixed(1)} dB`);
-  else add('Sound: found');
-  const d = a.video.dups;
-  add(d.percent > st.dupPassPercent ? `Repeated frames: ${d.percent.toFixed(1)}% (longest hold ${d.longestRunSec.toFixed(1)} s)` : 'Repeated frames: none');
-  const bars = describeBars(a.video.crop, v.width, v.height, st.barTolerancePx);
-  add(`Black bars: ${bars || 'none'}`);
-  const ends = describeBlackEnds(a.video.black, src.durationSec);
-  if (ends.start || ends.end) add('Black frames: ' + [ends.start ? `${ends.start.toFixed(1)} s at the start` : '', ends.end ? `${ends.end.toFixed(1)} s at the end` : ''].filter(Boolean).join(', '));
-  if (a.video.idet && a.video.idet.interlacedPercent >= 5) add('Scan: interlaced (an older TV format)');
-  return out;
-}
-
-// The automatic check in plain words, judged against the chosen placement.
-function plainChecklist() {
-  const a = state.analysis, src = state.src, v = src.video, spec = state.preset.spec, s = state.settings, st = state.config.strictness;
-  const name = state.preset.custom ? 'your settings' : shortName(state.preset); // "Cineplex" rather than "Cineplex: cinema pre-show"
-  const out = []; const add = (status, text, more) => out.push([status, text, more]);
-  const t = targetFormat(s, src);
-
-  // Size (the file always keeps the uploaded shape; shape is not checked)
-  if (t.scales) add('ok', `The picture will be resized from ${v.width} x ${v.height} to ${t.w} x ${t.h}.`, t.w > v.width ? 'Making a picture bigger than the original can look slightly soft.' : '');
-  else add('ok', `Size is right (${v.width} x ${v.height}).`);
-
-  // Length: close to a standard spot length = made exactly that long.
-  const spot = spotLength(outDuration(src, t), t.fps, state.config.spotLengths);
-  if (spot && (spot.cut || spot.pad) && !(t.conform && Math.abs(spot.exactSec - outDuration(src, t)) < 0.02)) add('ok', `Length is ${src.durationSec.toFixed(2)} seconds. The file will be made exactly ${spot.seconds} seconds.`, spot.cut ? `The last ${spot.cut.toFixed(2)} s will be cut.` : `The last frame will be held for ${spot.pad.toFixed(2)} s to fill the time.`);
-  else if (spot) add('ok', `Length is exactly ${spot.seconds} seconds.`);
-  else add('info', `Length is ${src.durationSec.toFixed(1)} seconds. That is not close to a standard ${(state.config.spotLengths?.lengths || []).join(', ')} second spot, so it will be kept as it is.`);
-  if (s.tailBlackSec > 0) add('ok', `${s.tailBlackSec} seconds of black and silence will be added at the end, as ${name} requires.`);
-
-  // Frame rate
-  if (t.conform) add('ok', `Frame rate is ${fmtFps(v.fps)} fps and will be changed to ${fmtFps(t.fps)} fps${t.autoFps ? `, which ${name} accepts` : ''}.`,
-    `Every frame is kept and played ${t.fps < v.fps ? '0.1% slower' : '0.1% faster'}, with the sound matched. Nothing is dropped or repeated, and the difference cannot be seen or heard.`);
-  else if (t.lowers) add('ok', `Frame rate is ${fmtFps(v.fps)} fps and will be lowered to ${fmtFps(t.fps)} fps${t.autoFps ? `, which ${name} accepts` : ''}.`,
-    'Frames are dropped evenly, so nothing repeats. Fast motion can look very slightly less smooth.');
-  else if (t.raises) add('warn', `Frame rate is ${fmtFps(v.fps)} fps and will be raised to ${fmtFps(t.fps)} fps${t.autoFps ? `, the closest rate ${name} accepts` : ''}.`,
-    'Raising the frame rate repeats some frames. Light grain is switched on to hide them. If the placement rejects repeated frames, ask the editor for an export at ' + fmtFps(t.fps) + ' fps.');
-  else if (spec.allowedFps && !spec.allowedFps.some(f => Math.abs(f - t.fps) / f < 0.0005))
-    add('warn', `Frame rate would be ${fmtFps(t.fps)} fps. ${name} accepts ${spec.allowedFps.map(fmtFps).join(', ')} fps.`, 'The frame rate was changed under "Change the technical settings". Set it back to "Keep native" to let the tool pick one.');
-
-  // Sound
-  if (!src.audio) add(spec.audioRequired ? 'bad' : 'info', spec.audioRequired ? `No sound: ${name} requires audio.` : 'This video has no sound.');
-  else if (a.audio?.silent) add(spec.audioRequired ? 'bad' : 'warn', 'The sound track is silent.', spec.audioRequired ? `${name} requires audible sound.` : '');
-  else if (s.loudMode === 'max' && a.audio) {
-    const loud = a.audio.rms > s.loudTarget + 0.05, peaky = a.audio.samplePeak > s.loudPeak + 0.05;
-    if (loud || peaky) add('ok', `Sound found. It is louder than ${name} allows, so it will be turned down to fit.`,
-      `Average ${a.audio.rms.toFixed(1)} dB (limit ${s.loudTarget}), peak ${a.audio.samplePeak.toFixed(1)} dB (limit ${s.loudPeak}).`);
-    else add('ok', `Sound is within ${name}'s volume limits, so it will be left as it is.`,
-      `Average ${a.audio.rms.toFixed(1)} dB (limit ${s.loudTarget}), peak ${a.audio.samplePeak.toFixed(1)} dB (limit ${s.loudPeak}).`);
+  S.running = true; S.cancelled = false;
+  for (const t of document.querySelectorAll('.tile')) t.disabled = true;
+  try {
+    for (let i = 0; i < S.files.length && !S.cancelled; i++) {
+      const f = S.files[i];
+      S.busyKey = f.key; renderFiles();
+      document.querySelector(`.slip[data-key="${CSS.escape(f.key)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      try { S.results[f.key] = await makeOne(f, i, target); }
+      catch (e) { if (!S.cancelled) S.results[f.key] = { status: 'fail', error: friendlyError(e), rows: [], notes: [] }; }
+      S.busyKey = null;
+    }
+  } finally {
+    S.running = false; S.busyKey = null;
+    for (const t of document.querySelectorAll('.tile')) t.disabled = false;
+    renderFiles();
+    if (S.cancelled) makeMsg('info', 'Stopped. Files already finished were saved; the one in progress was not.');
+    S.cancelled = false;
   }
-  else if (s.loudMode !== 'off') add('ok', s.loudMode === 'lufs' ? `Sound found. The volume will be set automatically to ${s.loudTarget} LKFS, peaks no higher than ${s.loudPeak} dB.` : `Sound found. The volume will be set automatically to ${name}'s level.`);
-  else add('ok', 'Sound found. The volume will be left as it is.');
-
-  // Repeated frames
-  const d = a.video.dups, strict = !!spec.noDuplicateFrames; // strict = this placement is known to reject repeats
-  if (d.conversion) add(strict ? 'bad' : 'warn', 'This video looks like it was converted from another frame rate (a repeated frame every few frames).',
-    'Disney+ and others reject this as "duplicate frames". Ask the editor for an export at the original frame rate. Grain can hide exact repeats but may not pass their check.');
-  else if (d.percent > st.dupPassPercent) add(strict ? 'warn' : 'info', `Some frames repeat (${d.percent.toFixed(1)}% of frames, longest hold ${d.longestRunSec.toFixed(1)} s), for example a held still or end card.`,
-    strict ? `${spec.noDuplicateFramesBy || name} rejects repeated frames. Tick "Add light grain" below to prevent this.` : 'Usually fine. If a placement ever rejects it for repeated frames, tick "Add light grain" below.');
-  else add('ok', 'No repeated frames.');
-
-  // Black bars and black frames
-  const bars = describeBars(a.video.crop, v.width, v.height, st.barTolerancePx);
-  if (bars) add(spec.noLetterbox ? 'bad' : spec.barsAllowed ? 'info' : 'warn', `Black bars found (${bars}).`,
-    spec.noLetterbox ? `${spec.noLetterboxBy || name} does not allow black bars. The picture must fill the frame; this needs fixing in the edit.`
-      : spec.barsAllowed ? `${name} accepts this. The picture just will not fill the whole screen.`
-      : 'Some placements do not allow black bars around the picture.');
-  else add('ok', 'No black bars around the picture.');
-  const ends = describeBlackEnds(a.video.black, src.durationSec);
-  if (ends.start || ends.end) add('warn', 'Black frames at the ' + [ends.start ? `start (${ends.start.toFixed(1)} s)` : '', ends.end ? `end (${ends.end.toFixed(1)} s)` : ''].filter(Boolean).join(' and ') + '.', 'Usually fine, but some placements want the picture to start on the first frame.');
-
-  // Interlacing
-  if (a.video.idet && a.video.idet.interlacedPercent >= 5) add('warn', 'This video is interlaced (an older TV format).', 'Most placements need progressive video. Ask the editor for a progressive export.');
-  return out;
 }
 
-// One safe-zone rectangle, positioned as a percentage of the frame so it scales with the preview.
-function zoneBox(z) {
-  const pos = `left:${100 * z.x / z.refW}%;top:${100 * z.y / z.refH}%;width:${100 * z.w / z.refW}%;height:${100 * z.h / z.refH}%;`;
-  const style = z.type === 'safe'
-    ? 'border:2px dashed #5fbf82;box-shadow:0 0 0 999px rgba(0,0,0,.5);'
-    : 'border:2px solid #e0685a;background:rgba(224,104,90,.35);';
-  return el('div', { style: 'position:absolute;pointer-events:none;box-sizing:border-box;' + pos + style, title: z.label });
+async function makeOne(f, i, target) {
+  const s = f.desc.settings, src = S.video.src, ext = s.container, memName = 'out.' + ext;
+  const n = S.files.length, pre = n > 1 ? `File ${i + 1} of ${n}: ` : '';
+  const prog = progressBox(document.getElementById('run-' + i));
+  try {
+    await ensureEngine(prog);
+    const path = await engine.mountForEncode(S.video.file);
+    const leveling = s.loudMode !== 'off' && !!src.audio;
+    let audioFilter = null, levelInfo = '';
+    if (leveling) ({ filter: audioFilter, info: levelInfo } = await planLeveling(engine, path, s, prog.timed(pre + 'measuring the sound', src.durationSec)));
+    const t = targetFormat(s, src);
+    const spot = spotLength(outDuration(src, t), t.fps, S.cfg.spotLengths);
+    const { args, notes } = buildArgs(s, src, path, memName, { audioFilter, spot });
+    await engine.encode(args, prog.timed(pre + 'making it', f.desc.lengthSec)); // the new file's length (CTV adds 10 s)
+
+    const extra = {};
+    if (leveling) { prog.set(pre + 'checking the sound', null); extra.audio = await measureAudio(engine, memName); }
+    extra.video = await scanVideo(engine, memName, t.fps, S.cfg.strictness.dupDiffThreshold, s.vcodec === 'prores' ? 10 : 8, prog.timed(pre + 'checking every frame', f.desc.lengthSec));
+    prog.noEta(); prog.set(pre + 'checking the file', null);
+    let data = await engine.takeOutput(memName);
+    const blob = new Blob([data], { type: MIME[ext] }); data = null;
+    const out = summarize(await engine.probe(blob, '.' + ext)); out.sizeBytes = blob.size;
+
+    prog.set(pre + 'saving', null);
+    const saved = [];
+    for (const slot of f.slots) {
+      const name = slot.name.trim() + '.' + ext;
+      const handle = target.dir ? await target.dir.getFileHandle(name, { create: true }) : (f.slots.length === 1 && S.files.length === 1 ? target.handle : null);
+      saved.push({ name, ...(await saveOutput(blob, name, handle, !!target.dir)) });
+    }
+    const source = { ...src, dupPercent: S.video.analysis?.video?.dups?.percent, conversion: S.video.analysis?.video?.dups?.conversion };
+    const rows = verify(out, s, reportSpec(f), { source, fileName: null, strictness: S.cfg.strictness, extra, spot, tail: s.tailBlackSec || 0 });
+    for (const slot of f.slots) {
+      const r = checkName(slot.name.trim() + '.' + ext, slot.rule);
+      if (r) rows.push({ label: 'File name' + (f.slots.length > 1 ? ' for ' + joinNames(slot.for) : ''), expected: r.expected, actual: r.actual, status: r.ok ? 'pass' : 'warn', note: r.ok ? '' : slot.rule.note || '' });
+    }
+    const where = saved.some(x => x.url) ? 'Saved to your Downloads folder.' : target.dir ? 'Saved in the folder you chose.' : 'Saved where you chose.';
+    return { status: overall(rows), rows, notes: [...f.desc.changes.map(c => c.text + '.'), ...notes, ...(levelInfo ? [levelInfo] : [])], saved, where, members: f.members.map(p => p.short) };
+  } finally { prog.done(); }
 }
 
-// Save the finished file. Direct-to-disk where the browser allows, else a normal download.
-// Returns { note, url } (url only for a browser download, for "Download again").
+function resultView(r) {
+  if (r.error) return el('div', { class: 'result bad' }, el('div', { class: 'line', text: 'This file could not be made.' }), el('div', { class: 'msg bad', text: r.error }));
+  const count = (st) => r.rows.filter(x => x.status === st).length;
+  const who = joinNames(r.members);
+  const line = r.status === 'pass' ? `Made and checked. It meets ${r.members.length > 1 ? 'the spec for ' + who : who + "'s spec"}.`
+    : r.status === 'warn' ? `Made. ${plural(count('warn'), 'thing', 'things')} to look at before you send it.`
+    : `Made, but ${plural(count('fail'), 'check', 'checks')} failed. ${who} may reject it.`;
+  const issues = r.rows.filter(x => x.status === 'fail' || x.status === 'warn');
+  return el('div', { class: 'result ' + (r.status === 'pass' ? 'ok' : r.status === 'warn' ? 'warn' : 'bad') },
+    el('div', { class: 'line', text: line }),
+    el('div', { class: 'row' }, el('span', { class: 'hint', text: r.where + ' ' + r.saved.map(x => x.name).join(', ') }),
+      r.saved.filter(x => x.url).map(x => el('button', { type: 'button', class: 'ghost small', text: 'Download ' + x.name + ' again', onclick: () => triggerDownload(x.url, x.name) }))),
+    issues.length ? el('ul', { class: 'items todo' }, issues.map(x => el('li', { class: x.status === 'fail' ? 'bad' : 'warn' }, `${x.label}: ${x.actual}` + (x.expected ? ` (should be ${x.expected})` : ''), x.note ? el('small', { text: x.note }) : null))) : null,
+    el('details', {}, el('summary', { class: 'hint', text: `Full report (${r.rows.length} checks)` }),
+      el('table', { class: 'report' }, el('thead', {}, el('tr', {}, ['Check', 'Expected', 'Result', '', 'Note'].map(h => el('th', { text: h })))),
+        el('tbody', {}, r.rows.map(x => el('tr', {}, el('td', { text: x.label }), el('td', { text: x.expected }), el('td', { text: x.actual }),
+          el('td', {}, el('span', { class: 'tag ' + x.status, text: x.status === 'pass' ? 'OK' : x.status.toUpperCase() })), el('td', { text: x.note || '' }))))),
+      r.notes.length ? el('ul', { class: 'hint' }, r.notes.map(t => el('li', { text: t }))) : null),
+    el('p', { class: 'hint', style: 'margin:0', text: 'This checks the file against the published spec. Have someone review it before it is sent.' }));
+}
+
 async function saveOutput(blob, name, handle) {
-  if (window.__testSink) { await window.__testSink(blob, name); return { note: 'Test sink received ' + fmtBytes(blob.size) + '.' }; }
-  if (handle) {
-    const w = await handle.createWritable();
-    await w.write(blob);
-    await w.close();
-    return { note: 'Saved to the location you chose.' };
-  }
-  const url = URL.createObjectURL(blob); state.blobUrls.push(url);
+  if (window.__testSink) { await window.__testSink(blob, name); return {}; }
+  if (handle) { const w = await handle.createWritable(); await w.write(blob); await w.close(); return {}; }
+  const url = URL.createObjectURL(blob); S.blobUrls.push(url);
   triggerDownload(url, name);
-  return { note: 'Downloaded through your browser (check your Downloads folder).', url };
+  return { url };
 }
-function triggerDownload(url, name) {
-  const a = el('a', { href: url, download: name });
-  document.body.append(a); a.click(); a.remove();
-}
+function triggerDownload(url, name) { const a = el('a', { href: url, download: name }); document.body.append(a); a.click(); a.remove(); }
 
-function onCancel() {
-  state.cancelled = true;
-  engine.cancel();
-  hideProgress();
-  showError('Cancelled. Nothing was saved.');
-}
+function clearResults() { S.results = {}; for (const u of S.blobUrls) URL.revokeObjectURL(u); S.blobUrls = []; }
+function makeMsg(level, text) { $('make-msg').replaceChildren(el('div', { class: 'msg ' + level, text })); }
 
-// Check the source file against the preset without encoding (use case 8).
-function onCheckSource() {
-  clearResult(); showError('');
-  const extra = state.analysis ? { audio: state.analysis.audio, video: state.analysis.video } : null;
-  const rows = verify(state.src, state.settings, state.preset, { source: null, fileName: null, strictness: state.config.strictness, extra });
-  showResult('Check of your video against "' + state.preset.name + '" (no new file made)', rows, state.analysis ? [] : ['The automatic check has not finished, so loudness, repeated frames and black bars are not included.'], '');
-}
-
-// ---------- result and errors ----------
-function clearResult() {
-  $('sec-result').classList.add('hidden'); $('results').replaceChildren();
-  for (const u of state.blobUrls) URL.revokeObjectURL(u);
-  state.blobUrls = [];
-}
-
-function showResult(title, rows, notes, savedNote, dl) {
-  const ov = overall(rows);
-  const count = (st) => rows.filter(r => r.status === st).length;
-  const where = state.preset.custom ? 'your settings' : state.preset.name;
-  const label = {
-    pass: `Ready for ${where}. The file matches the published spec.`,
-    warn: `Ready for ${where}, with ${count('warn')} thing${count('warn') > 1 ? 's' : ''} to look at.`,
-    fail: `${count('fail')} problem${count('fail') > 1 ? 's' : ''} found. The placement may reject this file.`
-  }[ov];
-  const block = el('div', { class: 'result-block' },
-    el('h3', { text: title, style: 'margin-top:0' }),
-    el('div', { class: 'banner ' + ov, text: label }));
-  const row = el('div', { class: 'row' });
-  if (dl) row.append(el('button', { class: 'primary', type: 'button', text: 'Download this file again', onclick: () => triggerDownload(dl.url, dl.name) }));
-  if (savedNote) row.append(el('span', { class: 'hint', text: savedNote }));
-  // Plain list of only the things that need attention; the full table sits behind "Full technical report".
-  const issues = rows.filter(r => r.status === 'fail' || r.status === 'warn');
-  const list = el('ul', { class: 'checklist', style: 'margin-top:12px' }, ...issues.map(r => checkItem([r.status === 'fail' ? 'bad' : 'warn',
-    `${r.label}: ${r.actual}` + (r.expected ? ` (should be ${r.expected})` : ''), r.note || ''])));
-  const table = el('table', {}, el('thead', {}, el('tr', {}, ...['Check', 'Expected', 'Actual', 'Result', 'Note'].map(h => el('th', { text: h })))));
-  const body = el('tbody');
-  for (const r of rows) body.append(el('tr', {}, el('td', { text: r.label }), el('td', { text: r.expected }), el('td', { text: r.actual }),
-    el('td', {}, el('span', { class: 'tag ' + r.status, text: r.status.toUpperCase() })), el('td', { class: 'note', text: r.note || '' })));
-  table.append(body);
-  const custom = changedFromPreset();
-  const report = el('details', { style: 'margin-top:14px' }, el('summary', { class: 'hint', style: 'cursor:pointer', text: 'Full technical report' }), table,
-    ...(custom.length ? [el('p', { class: 'hint', text: 'Settings changed from the preset: ' + custom.join(', ') + '. The report checks against your current settings and the preset limits.' })] : []),
-    ...(notes.length ? [el('ul', { class: 'notes' }, ...notes.map(n => el('li', { text: n })))] : []));
-  block.append(row, list, report);
-  $('results').append(block);
-  $('sec-result').classList.remove('hidden');
-  block.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function changedFromPreset() {
-  const d = state.defaults, s = state.settings;
-  return Object.keys(d).filter(k => String(d[k] ?? '') !== String(s[k] ?? ''));
-}
-
-function showError(msg) { $('error').replaceChildren(...(msg ? [el('div', { class: 'msg bad', text: msg })] : [])); }
+function onCancel() { S.cancelled = true; engine.cancel(); }
 
 function friendlyError(e) {
   const m = String(e?.message || e);
-  if (/memory|alloc|Aborted|out of bounds|RangeError|detached/i.test(m))
-    return 'The browser ran out of memory while working on this file. Close other tabs and programs and try again, choose a smaller output (H.264 instead of ProRes, lower bitrate), or use desktop software for this one.\n\nDetails: ' + m.slice(0, 300);
+  if (/out of memory|memory access|alloc|RangeError|detached/i.test(m))
+    return 'The browser ran out of memory. Close other tabs and programs and try again, or use desktop software for this file.\n\nDetails: ' + m.slice(0, 300);
   return m.slice(0, 600);
 }
 
 // ---------- safety nets ----------
-// Things that go wrong in real use: closing the tab mid-encode, switching tabs
-// (browsers slow background tabs), and errors nobody planned for.
 function setupGuards() {
-  window.addEventListener('beforeunload', (ev) => { if (state.running) { ev.preventDefault(); ev.returnValue = ''; } });
+  window.addEventListener('beforeunload', (ev) => { if (S.running) { ev.preventDefault(); ev.returnValue = ''; } });
   document.addEventListener('visibilitychange', () => {
-    if (state.running && document.hidden) showError('Tip: this tab is in the background. Browsers slow background tabs, so the work may pause until you come back. Keep it in the foreground.');
-    else if (!document.hidden && $('error').textContent.startsWith('Tip: this tab')) showError('');
+    if (S.running && document.hidden) makeMsg('info', 'This tab is in the background. Browsers slow background tabs, so the work may pause until you come back.');
   });
-  const unexpected = (ev) => {
-    const e = ev.reason || ev.error || ev;
-    if (state.running) return; // the running task reports its own errors
-    showError('Something unexpected went wrong: ' + friendlyError(e));
-  };
+  const unexpected = (ev) => { if (S.running) return; makeMsg('bad', 'Something unexpected went wrong: ' + friendlyError(ev.reason || ev.error || ev)); };
   window.addEventListener('unhandledrejection', unexpected);
   window.addEventListener('error', unexpected);
 }
 
 // ---------- start-up ----------
 async function init() {
+  setupTheme();
   const msgs = $('browser-msg');
-  if (!window.WebAssembly || !window.Worker) {
-    msgs.append(el('div', { class: 'msg bad', text: 'This browser cannot run the encoder. Use a current version of Edge or Chrome.' })); return;
-  }
+  if (!window.WebAssembly || !window.Worker) { msgs.append(el('div', { class: 'msg bad', text: 'This browser cannot run the encoder. Use a current version of Edge or Chrome.' })); return; }
   const ua = navigator.userAgent;
-  if (/Safari/.test(ua) && !/Chrome|Chromium|Edg/.test(ua)) msgs.append(el('div', { class: 'msg warn', text: 'Safari support is best effort and has not been tested. If anything fails, use Edge or Chrome.' }));
-  else if (!window.showSaveFilePicker) msgs.append(el('div', { class: 'msg info', text: 'This browser will save the finished file as a normal download. Edge and Chrome can save larger files more safely.' }));
-
-  try {
-    state.config = await (await fetch('presets.json', { cache: 'no-cache' })).json();
-  } catch (e) {
-    msgs.append(el('div', { class: 'msg bad', text: 'Could not read presets.json. If you opened this page by double-clicking the file, use the web address instead. ' + e })); return;
-  }
-  // One clickable tile per placement: logo (or the name in the placement's colour),
-  // a short line saying what it is, and a tick when chosen.
-  const tick = (p) => {
-    const tl = p.tile || {};
-    const title = tl.title || p.name;
-    // tile.colors (optional): several brand colours shown as stripes, e.g. CTV's red, blue and green.
-    const stripes = Array.isArray(tl.colors) && tl.colors.length > 1
-      ? `background:linear-gradient(90deg,${tl.colors.map((c, i, a) => `${c} ${(100 * i / a.length).toFixed(1)}% ${(100 * (i + 1) / a.length).toFixed(1)}%`).join(',')})` : '';
-    const word = () => el('span', { class: 'word', text: title, ...(stripes ? { style: stripes } : {}) });
-    const logo = el('div', { class: 'logo' });
-    if (tl.logo) {
-      const img = el('img', { src: tl.logo, alt: title });
-      img.addEventListener('error', () => logo.replaceChildren(word())); // missing file: fall back to the name
-      logo.append(img);
-    } else logo.append(word());
-    const b = el('button', { type: 'button', class: 'tile', 'data-id': p.id, 'aria-pressed': 'false', title: p.name, style: `--brand:${tl.color || 'var(--text)'}` },
-      el('span', { class: 'chk', text: '✓' }), logo,
-      ...(tl.logo ? [el('span', { class: 'sub', style: 'color:var(--text);font-weight:600', text: title })] : []),
-      el('span', { class: 'sub', text: tl.sub || '' }));
-    b.addEventListener('click', () => onTick(p, !state.ticked.includes(p.id)));
-    return b;
-  };
-  const all = state.config.presets;
-  // Every placement in one grid. Versions of the same brand, if a preset list ever has them,
-  // sit side by side so they read as options, not repeats.
-  const brand = (p) => (p.tile?.title || p.name).toLowerCase();
-  const list = all.filter(p => !p.custom);
-  const firstAt = new Map(); list.forEach((p, i) => { if (!firstAt.has(brand(p))) firstAt.set(brand(p), i); });
-  const ordered = list.map((p, i) => ({ p, i })).sort((a, b) => firstAt.get(brand(a.p)) - firstAt.get(brand(b.p)) || a.i - b.i).map(x => x.p);
-  // Custom goes last, in the same grid.
-  $('ticks-main').replaceChildren(...ordered.map(tick), ...all.filter(p => p.custom).map(tick));
-  $('reset-preset').addEventListener('click', () => {
-    const g = state.groups[state.active]; if (!g) return;
-    g.settings = { ...g.defaults, noiseOn: raisesFps(g.defaults) }; state.settings = g.settings;
-    buildSettingsForm(); update();
-  });
-  $('btn-customize').addEventListener('click', () => {
-    state.customize = !state.customize;
-    const g = state.groups[state.active]; if (g) g.customize = state.customize;
-    showAdvanced();
-  });
-  $('grain').addEventListener('change', () => { state.settings.noiseOn = $('grain').checked; update(); });
-  $('outname').addEventListener('input', () => { saveActiveName(); update(); });
-  $('btn-encode').addEventListener('click', onEncode);
-  $('btn-cancel').addEventListener('click', onCancel);
-  $('btn-check').addEventListener('click', onCheckSource);
+  if (/Safari/.test(ua) && !/Chrome|Chromium|Edg/.test(ua)) msgs.append(el('div', { class: 'msg warn', text: 'Safari has not been tested. If anything fails, use Edge or Chrome.' }));
+  else if (!window.showSaveFilePicker) msgs.append(el('div', { class: 'msg info', text: 'This browser saves finished files as normal downloads. Edge and Chrome can save large files more safely.' }));
+  try { S.cfg = await (await fetch('placements.json', { cache: 'no-cache' })).json(); }
+  catch (e) { msgs.append(el('div', { class: 'msg bad', text: 'Could not read placements.json. Open this page through its web address, not by double-clicking the file. ' + e })); return; }
+  buildTiles();
   setupDrop();
   setupGuards();
-  onTicks(); // nothing ticked yet
-  window.__app = { state, engine, loadFile, onTick, setActive, onEncode, onCheckSource, setSetting }; // handy for testing
+  $('btn-make').addEventListener('click', onMake);
+  $('btn-cancel').addEventListener('click', onCancel);
+  replan();
+  window.__app = { S, loadFile, onTile: (id) => onTile(placement(id)), onMake, replan, engine }; // for testing
 }
 init();

@@ -4,276 +4,74 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Placement Encoder</title>
-<style>
-  /* Look and feel matches the GIF Batch Assembler: dark theme, amber accent. */
-  :root{
-    --bg:#13161b; --surface:#1b2027; --surface-2:#232933; --surface-3:#2b323d; --field-bg:#262d37;
-    --text:#f1f3f6; --text-dim:#9aa5b1; --text-faint:#6d7684;
-    --accent:#e8a33d; --accent-soft:rgba(232,163,61,.16);
-    --good:#5fbf82; --good-soft:rgba(95,191,130,.16);
-    --warn:#e8a33d; --warn-soft:rgba(232,163,61,.16);
-    --bad:#e0685a; --bad-soft:rgba(224,104,90,.16);
-    --mono:"SF Mono","Roboto Mono",Consolas,monospace;
-    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Helvetica,Arial,sans-serif;
-    --shadow-card:0 12px 28px -10px rgba(0,0,0,.55),0 2px 6px rgba(0,0,0,.3);
-    --shadow-sm:0 2px 8px rgba(0,0,0,.3);
-  }
-  *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5;padding:32px 24px 80px;}
-  .wrap{max-width:1040px;margin:0 auto;}
-  header{margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid rgba(255,255,255,.06);}
-  header .eyebrow{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin:0 0 8px;}
-  header h1{margin:0 0 8px;font-size:26px;font-weight:700;letter-spacing:-.015em;}
-  header p{margin:0;color:var(--text-dim);max-width:680px;}
-
-  .panel{background:var(--surface);box-shadow:var(--shadow-card);border-radius:16px;padding:22px 24px;margin-bottom:20px;}
-  .panel h2{font-size:12.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-dim);margin:0 0 14px;font-weight:700;}
-  .panel h3{font-size:13px;margin:18px 0 8px;color:var(--text);}
-  .row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
-  .row + .row{margin-top:14px;}
-
-  button{font-family:var(--sans);font-size:13.5px;font-weight:600;border-radius:10px;border:1px solid rgba(255,255,255,.08);
-    background:var(--surface-2);color:var(--text);padding:10px 18px;cursor:pointer;box-shadow:var(--shadow-sm);
-    transition:transform .1s ease,background .12s ease;}
-  button:hover:not(:disabled){background:var(--surface-3);transform:translateY(-1px);}
-  button:disabled{opacity:.4;cursor:not-allowed;}
-  button.primary{background:var(--accent);color:#211603;border-color:transparent;}
-  button.primary:hover:not(:disabled){background:#f0ae4d;}
-  button.ghost{background:transparent;box-shadow:none;}
-  button.danger{background:var(--bad-soft);color:var(--bad);}
-
-  .field,input[type=number],input[type=text],select{background:var(--field-bg);border:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);
-    color:var(--text);border-radius:10px;padding:8px 10px;font-family:var(--sans);font-size:13px;}
-  select option{background:var(--surface-2);}
-  input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--accent);}
-  input[type=number]{width:96px;}
-  input[type=range]{accent-color:var(--accent);width:220px;}
-  .hint{color:var(--text-dim);font-size:12.5px;}
-
-  /* Drop zone */
-  .drop{border:2px dashed rgba(255,255,255,.14);border-radius:14px;padding:34px 20px;text-align:center;color:var(--text-dim);
-    transition:border-color .15s,background .15s;cursor:pointer;}
-  .drop.over{border-color:var(--accent);background:var(--accent-soft);color:var(--text);}
-  .drop strong{color:var(--text);}
-
-  /* Source details grid */
-  .kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px 24px;margin-top:14px;}
-  .kv div span{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);font-weight:700;}
-  .kv div b{font-weight:500;word-break:break-word;}
-
-  /* Settings form */
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px 22px;}
-  .grid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text-dim);font-weight:600;}
-  .grid label.check{flex-direction:row;align-items:center;gap:8px;font-size:13px;color:var(--text);font-weight:500;}
-  .grid select,.grid input[type=text],.grid input[type=number]{width:100%;}
-  .grid .inline{display:flex;gap:8px;align-items:center;}
-  .changed{box-shadow:0 0 0 1.5px var(--accent) !important;}
-
-  .tag{display:inline-block;font-size:12.5px;font-weight:600;padding:4px 11px;border-radius:8px;width:fit-content;}
-  .tag.warn{background:var(--warn-soft);color:var(--warn);}
-  .tag.bad,.tag.fail{background:var(--bad-soft);color:var(--bad);}
-  .tag.ok,.tag.pass{background:var(--good-soft);color:var(--good);}
-  .tag.info{background:var(--surface-3);color:var(--text-dim);}
-
-  .msgs{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
-  .msg{padding:10px 14px;border-radius:10px;font-size:13px;}
-  .msg.warn{background:var(--warn-soft);color:var(--warn);}
-  .msg.bad{background:var(--bad-soft);color:var(--bad);}
-  .msg.info{background:var(--surface-2);color:var(--text-dim);}
-
-  /* Progress */
-  .progress-wrap{margin-top:16px;}
-  .bar{height:14px;border-radius:8px;background:var(--surface-3);overflow:hidden;}
-  .bar > i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s linear;}
-  .bar.indet > i{width:35%;animation:slide 1.2s ease-in-out infinite;}
-  @keyframes slide{0%{margin-left:-35%}100%{margin-left:100%}}
-  .progress-meta{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:13px;color:var(--text-dim);}
-  .progress-meta b{color:var(--text);font-weight:600;}
-
-  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px;}
-  thead th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-dim);padding:0 10px 10px;border-bottom:1px solid rgba(255,255,255,.06);font-weight:700;}
-  tbody td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.05);vertical-align:top;}
-  tbody tr:last-child td{border-bottom:none;}
-  td.note{color:var(--text-dim);font-size:12.5px;}
-
-  .banner{padding:12px 16px;border-radius:12px;font-weight:600;margin-bottom:6px;}
-  .banner.pass{background:var(--good-soft);color:var(--good);}
-  .banner.warn{background:var(--warn-soft);color:var(--warn);}
-  .banner.fail{background:var(--bad-soft);color:var(--bad);}
-  ul.notes{margin:8px 0 0;padding-left:20px;color:var(--text-dim);font-size:13px;}
-  /* Plain-language checklist */
-  ul.checklist{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;}
-  ul.checklist li{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border-radius:10px;background:var(--surface-2);font-size:13.5px;}
-  ul.checklist li .ic{flex:0 0 22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;}
-  ul.checklist li.ok .ic{background:var(--good-soft);color:var(--good);}
-  ul.checklist li.warn .ic{background:var(--warn-soft);color:var(--warn);}
-  ul.checklist li.bad .ic{background:var(--bad-soft);color:var(--bad);}
-  ul.checklist li.info .ic{background:var(--surface-3);color:var(--text-dim);}
-  ul.checklist li small{display:block;color:var(--text-dim);font-size:12.5px;margin-top:2px;}
-  details.expert{margin-top:18px;}
-  details.expert > summary{cursor:pointer;font-weight:600;font-size:13px;}
-  /* Placement ticks and file cards */
-  .ticks{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:12px;margin-top:12px;}
-  .ticks.small{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;}
-  .tile{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:16px 12px 14px;
-    border-radius:14px;background:var(--surface-2);border:2px solid transparent;box-shadow:none;font-weight:500;cursor:pointer;
-    transition:border-color .12s ease,background .12s ease,transform .1s ease;}
-  .tile:hover:not(:disabled){background:var(--surface-3);transform:translateY(-1px);}
-  .tile:focus-visible{outline:none;box-shadow:0 0 0 2px var(--accent);}
-  .tile .logo{height:52px;width:100%;display:flex;align-items:center;justify-content:center;}
-  .tile .logo img{max-height:52px;max-width:80%;object-fit:contain;}
-  .tile .word{font-size:17px;font-weight:800;letter-spacing:-.01em;line-height:1.1;color:#fff;background:var(--brand);
-    padding:8px 14px;border-radius:9px;box-shadow:0 2px 6px rgba(0,0,0,.35);max-width:100%;}
-  .tile .sub{font-size:12px;color:var(--text-dim);line-height:1.35;}
-  .tile .chk{position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;border:2px solid rgba(255,255,255,.18);
-    display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:transparent;}
-  .tile.on{border-color:var(--accent);background:var(--accent-soft);}
-  .tile.on .chk{background:var(--accent);border-color:var(--accent);color:#211603;}
-  .ticks.small .tile{padding:12px 10px 10px;}
-  .ticks.small .tile .logo{height:36px;} .ticks.small .tile .logo img{max-height:36px;}
-  .ticks.small .tile .word{font-size:14px;padding:6px 11px;}
-  @media (max-width:520px){ .ticks,.ticks.small{grid-template-columns:repeat(2,1fr);} }
-  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:10px;}
-  .card{background:var(--surface-2);border-radius:12px;padding:12px 14px;cursor:pointer;border:2px solid transparent;}
-  .card:hover{background:var(--surface-3);}
-  .card.active{border-color:var(--accent);}
-  .card .num{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);}
-  .card b{display:block;margin:2px 0 4px;}
-  .card .for{color:var(--text-dim);font-size:12.5px;}
-  .card .st{margin-top:8px;font-size:12.5px;font-weight:600;}
-  .card .st.ok{color:var(--good);} .card .st.warn{color:var(--warn);} .card .st.bad{color:var(--bad);}
-  #active-file{margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,.06);}
-  .result-block + .result-block{margin-top:26px;padding-top:20px;border-top:1px solid rgba(255,255,255,.06);}
-  .hidden{display:none !important;}
-  footer{color:var(--text-faint);font-size:12.5px;margin-top:30px;}
-  pre.err{white-space:pre-wrap;background:var(--surface-2);padding:10px;border-radius:8px;font-family:var(--mono);font-size:12px;color:var(--text-dim);max-height:160px;overflow:auto;}
-</style>
+<script>
+  // Theme before first paint: the saved choice, else the computer's setting.
+  try { const t = localStorage.getItem('pe-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+<link rel="stylesheet" href="css/app.css">
 </head>
 <body>
 <div class="wrap">
 
-<header>
-  <p class="eyebrow">CAA NEO · Creative Services</p>
-  <h1>Placement Encoder</h1>
-  <p><a href="guide.html" style="color:var(--accent)">User guide</a> · Drop in a finished video, choose where it is going, and get a file made to that placement's spec. Everything happens in this browser tab. No files leave this computer.</p>
+<header class="top">
+  <div>
+    <h1>Placement Encoder</h1>
+    <p class="lede">Drop in a finished ad, choose where it is running, and get a file made to each placement's spec. Everything happens in this browser tab; your video never leaves this computer.</p>
+  </div>
+  <div class="top-tools">
+    <a href="guide.html">How it works</a>
+    <button type="button" class="theme-switch" id="theme-switch" role="switch" aria-checked="false" aria-label="Dark mode">
+      <span class="track"><span class="sun" aria-hidden="true"></span><span class="moon" aria-hidden="true"></span><span class="knob"></span></span>
+    </button>
+  </div>
 </header>
 
 <div id="browser-msg" class="msgs"></div>
 
-<!-- 1. SOURCE + AUTOMATIC CHECK -->
-<section class="panel" id="sec-source">
-  <h2>1 · Your video</h2>
-  <div class="drop" id="drop">
-    <strong>Drop a video here</strong> or click to choose a file<br>
-    <span class="hint">MOV or MP4 · one file at a time · stays on your computer</span>
-    <input type="file" id="file" accept="video/*,.mov,.mp4,.m4v" class="hidden">
+<!-- 1. VIDEO -->
+<section class="step" id="step-video" aria-labelledby="h-video">
+  <h2 id="h-video"><span class="n">1</span>Your video</h2>
+  <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose a video file">
+    <strong>Drop your video here</strong> or click to choose it
+    <span class="hint">MOV or MP4, one at a time. It stays on this computer.</span>
+    <input type="file" id="file" accept="video/*,.mov,.mp4,.m4v" hidden>
   </div>
-  <div id="source-status" class="hint" style="margin-top:12px"></div>
-  <div id="check-area" class="hidden">
-    <h3 id="check-head">Automatic check for <span id="check-for"></span></h3>
-    <p class="hint hidden" id="check-hint" style="margin-top:-4px">Choose where it is going in step 2 to check it against that placement.</p>
-    <ul class="checklist" id="checklist"></ul>
-    <div id="thumbs"></div>
-    <details style="margin-top:14px">
-      <summary class="hint" style="cursor:pointer">Technical details (for video professionals)</summary>
-      <div class="kv" id="source-details"></div>
-      <div id="preflight-report"></div>
-    </details>
-  </div>
-</section>
-
-<!-- 2. PLACEMENT -->
-<section class="panel" id="sec-settings">
-  <h2>2 · Where is it going?</h2>
-  <p class="hint" style="margin:0">Click every placement this video is going to (click again to remove it). Placements that take the same file are grouped, so you make as few files as possible.</p>
-  <div class="ticks small" id="ticks-main"></div>
-
-  <div id="files-area" class="hidden">
-    <h3 id="files-head" style="margin-top:20px"></h3>
-    <div class="cards" id="file-cards"></div>
-  </div>
-  <div class="msg info" id="none-ticked" style="margin-top:14px">Tick at least one placement to see which file you need.</div>
-
-  <div id="active-file" class="hidden">
-  <div class="row">
-    <h3 id="active-title" style="margin:0"></h3>
-    <span id="preset-status"></span>
-  </div>
-  <div class="hint" id="preset-summary" style="margin-top:8px"></div>
-  <details style="margin-top:6px">
-    <summary class="hint" style="cursor:pointer">Spec notes and source</summary>
-    <ul class="notes" id="preset-notes"></ul>
-    <div class="hint" id="preset-source" style="margin-top:8px"></div>
-  </details>
-
-  <h3>File name</h3>
-  <div class="row">
-    <input type="text" id="outname" class="field" style="width:320px" spellcheck="false" aria-label="Output file name">
-    <span class="hint" id="outext"></span>
-    <span class="hint" id="name-rule"></span>
-  </div>
-
-  <div id="grain-row" class="hidden" style="margin-top:16px">
-    <label class="check" style="display:flex;gap:8px;align-items:center;font-weight:600">
-      <input type="checkbox" id="grain"> Add light grain (prevents duplicate-frame rejections)
-    </label>
-    <div class="hint" id="grain-why" style="margin:4px 0 0 26px"></div>
-  </div>
-
-  <div class="row" style="margin-top:16px" id="customize-row">
-    <button class="ghost" id="btn-customize" type="button">Change the technical settings</button>
-  </div>
-  <div id="advanced" class="hidden">
-    <div class="row" style="margin-top:14px">
-      <span class="hint">Amber outline = changed from the placement's values.</span>
-      <button class="ghost" id="reset-preset" type="button" title="Put every setting back to the placement's values">Reset to placement values</button>
+  <div id="video-card" class="video-card" hidden>
+    <div class="vc-head">
+      <div><b id="vc-name"></b> <span class="hint" id="vc-size"></span></div>
+      <button type="button" class="link" id="vc-replace">Choose another video</button>
     </div>
-    <div id="settings-form" style="margin-top:6px"></div>
+    <div id="vc-progress"></div>
+    <div class="vc-body" id="vc-body" hidden>
+      <div class="thumbs" id="vc-thumbs"></div>
+      <dl class="facts" id="vc-facts"></dl>
+    </div>
+    <details class="tech"><summary>Technical details</summary><dl class="facts small" id="vc-tech"></dl></details>
   </div>
-  <div class="msgs" id="warnings"></div>
-  </div>
+  <div id="video-msg" class="msgs"></div>
 </section>
 
-<!-- 3. ENCODE -->
-<section class="panel" id="sec-encode">
-  <h2>3 · Make the file</h2>
-  <div class="row">
-    <button class="primary" id="btn-encode" disabled>Make the file</button>
-    <button class="ghost" id="btn-check" disabled title="Check your video against this placement without making a new file">Only check my video (no new file)</button>
-    <span class="hint" id="est"></span>
-  </div>
-  <div class="hint" id="keepopen" style="margin-top:10px">Keep this tab open and in the foreground while encoding. Large files can take several minutes.</div>
-  <div class="progress-wrap hidden" id="progress">
-    <div class="hint" id="step" style="margin-bottom:6px;color:var(--text);font-weight:600"></div>
-    <div class="bar" id="bar"><i></i></div>
-    <div class="progress-meta"><span id="pct"></span><span id="elapsed"></span><span id="eta"></span></div>
-    <button class="danger hidden" id="btn-cancel" style="margin-top:10px">Cancel</button>
-  </div>
-  <div id="error" class="msgs"></div>
+<!-- 2. PLACEMENTS -->
+<section class="step" id="step-where" aria-labelledby="h-where">
+  <h2 id="h-where"><span class="n">2</span>Where it's going</h2>
+  <p class="hint">Choose every placement this ad is running on. Click again to remove one.</p>
+  <div class="tiles" id="tiles"></div>
 </section>
 
-<!-- 4. RESULT -->
-<section class="panel hidden" id="sec-result">
-  <h2>4 · Result</h2>
-  <div id="results"></div>
-  <p class="hint" style="margin-top:14px">This is a technical check against the published spec values in the preset, not a guarantee of acceptance. Placements can still reject a file for content reasons. Presets marked UNVERIFIED have not been confirmed with the placement.</p>
+<!-- 3. FILES -->
+<section class="step" id="step-files" aria-labelledby="h-files">
+  <h2 id="h-files"><span class="n">3</span>Your files</h2>
+  <p class="hint" id="files-intro">Choose at least one placement to see the files you need.</p>
+  <div id="slips" class="slips"></div>
+  <div class="make" id="make" hidden>
+    <button type="button" class="primary" id="btn-make" disabled>Make the files</button>
+    <button type="button" class="ghost" id="btn-cancel" hidden>Stop</button>
+    <span class="hint" id="make-note"></span>
+  </div>
+  <div id="make-msg" class="msgs"></div>
 </section>
 
-<details class="panel" id="browser-notes">
-  <summary style="cursor:pointer;font-weight:600">Browser notes and limits</summary>
-  <ul class="notes">
-    <li><b>Best in Edge or Chrome on Windows.</b> Those browsers let you pick where the file is saved before encoding starts, and handle large files best.</li>
-    <li><b>Firefox</b> should work but is not tested. The finished file arrives as a normal download.</li>
-    <li><b>Safari</b> is best effort and not tested. It may fail on large files. If it does, use Edge or Chrome.</li>
-    <li>Keep the tab open and visible while encoding. Closing it stops the job, and background tabs run slowly.</li>
-    <li>Large files need memory: the finished file is held in memory before saving. On computers with 8 GB of RAM, outputs over about 0.8 GB may fail, so prefer H.264 over ProRes for long clips.</li>
-    <li>Browser encoding is slow (a 30 s HD clip can take several minutes). It does not use the graphics card.</li>
-    <li>The first visit downloads about 31 MB for the encoder. It is cached afterwards, and no video ever leaves this computer.</li>
-    <li>The report is a technical check against the preset values. Presets marked UNVERIFIED have not been confirmed with the placement.</li>
-  </ul>
-</details>
-
-<footer>No files leave this machine. Encoder: ffmpeg.wasm (pinned version, bundled with this page).</footer>
+<footer>Your video never leaves this computer. The encoder (ffmpeg.wasm) is bundled with this page. Files made here still need a person to review them before they are sent. <a href="check.html">Placement list check</a></footer>
 </div>
 <script type="module" src="js/app.js"></script>
 </body>

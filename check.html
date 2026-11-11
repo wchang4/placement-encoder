@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Placement list check</title>
+<script>try { const t = localStorage.getItem('pe-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .grid-list { display: grid; gap: 10px; }
+  .pl { display: grid; grid-template-columns: 150px 1fr; gap: 6px 18px; padding: 14px 16px; border-radius: 10px; background: var(--sheet-2); }
+  .pl .who { display: grid; gap: 6px; align-content: start; }
+  .pl .who .word { justify-self: start; font-size: 14px; font-weight: 800; color: #fff; background: var(--brand); padding: 4px 9px; border-radius: 6px; }
+  .pl p { margin: 0; }
+  .ok-t { color: var(--ok); font-weight: 700; }
+  .bad-t { color: var(--bad); font-weight: 700; }
+  .warn-t { color: var(--warn); }
+  textarea { width: 100%; min-height: 260px; font: 14px/1.45 Consolas, "Cascadia Mono", monospace; color: var(--ink); background: var(--sheet-2); border: 1px solid var(--rule); border-radius: 8px; padding: 10px; }
+  .combo { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 12px; }
+  .combo label { display: flex; gap: 6px; align-items: center; }
+  .filelist { display: grid; gap: 8px; }
+  .filelist li { padding: 10px 12px; border-radius: 8px; background: var(--sheet-2); list-style: none; }
+  .filelist { padding: 0; margin: 0; }
+  @media (max-width: 760px) { .pl { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <div>
+    <h1>Placement list check</h1>
+    <p class="lede">For whoever looks after the placement list. It reads placements.json and shows, in plain words, whether every entry is complete and which placements can share a file. Paste a new entry below to see where it would fit before it goes live.</p>
+  </div>
+  <div class="top-tools"><a href="index.html">Back to the encoder</a>
+    <button type="button" class="theme-switch" id="theme-switch" role="switch" aria-checked="false" aria-label="Dark mode">
+      <span class="track"><span class="sun" aria-hidden="true"></span><span class="moon" aria-hidden="true"></span><span class="knob"></span></span>
+    </button></div>
+</header>
+
+<section class="step">
+  <h2>Try a new placement</h2>
+  <p class="hint">Paste one placement entry (from <code>{</code> to the matching <code>}</code>). A starting template is filled in; change it to match the new spec sheet.</p>
+  <textarea id="draft" spellcheck="false"></textarea>
+  <div class="make" style="border:0;padding-top:6px;margin-top:6px">
+    <button type="button" class="primary" id="btn-try">Check this entry</button>
+    <label class="hint">Spot length to test with <select id="len"><option>6</option><option>15</option><option selected>30</option><option>60</option></select> seconds</label>
+  </div>
+  <div id="try-out" class="msgs"></div>
+</section>
+
+<section class="step">
+  <h2>Try a combination</h2>
+  <p class="hint">Tick placements to see the files the encoder would make.</p>
+  <div class="combo" id="combo"></div>
+  <ul class="filelist" id="combo-out"></ul>
+</section>
+
+<section class="step">
+  <h2>Every placement</h2>
+  <div class="grid-list" id="all"></div>
+</section>
+</div>
+<script type="module" src="js/check.js"></script>
+</body>
+</html>
