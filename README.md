@@ -79,7 +79,7 @@ The entry with `"custom": true` is the Custom tile, where the person picks the s
 
 ### Frame rates
 
-A video at a rate the file does not accept is changed to the closest accepted rate. 30 to 29.97, 24 to 23.976 and 60 to 59.94 are conformed: every frame is kept and retimed, and the sound stretched to match. Lower rates drop frames evenly (the slip warns when it is not a clean halving). Higher rates repeat frames and add light grain.
+A video at a rate the file does not accept is changed to the closest accepted rate. 30 to 29.97, 24 to 23.976 and 60 to 59.94 are conformed: every frame is kept and retimed, and the sound stretched to match. Lower rates drop frames evenly, like Media Encoder's default. Higher rates repeat frames and add light grain.
 
 ## Deploying to GitHub Pages
 

@@ -235,10 +235,9 @@ export function describeFile(file, cfg, video, custom = {}) {
   // Frame rate
   if (t.conform) out.changes.push({ text: `${fmtFps(v.fps)} fps to ${fmtFps(t.fps)} fps`, more: `Every frame is kept and played ${t.fps < v.fps ? '0.1% slower' : '0.1% faster'}, with the sound matched. Nothing is dropped or repeated.` });
   else if (t.lowers) {
-    const r = v.fps / t.fps, clean = Math.abs(r - Math.round(r)) < 0.01; // 60 to 30 is clean; 30 to 24 is not
-    out.changes.push({ text: `${fmtFps(v.fps)} fps to ${fmtFps(t.fps)} fps`, more: clean ? 'Every other frame is dropped, so motion stays smooth and nothing repeats.' : 'Frames are dropped evenly, so nothing repeats.' });
-    if (!clean) warn(`Going from ${fmtFps(v.fps)} to ${fmtFps(t.fps)} fps drops about 1 frame in ${Math.round(v.fps / (v.fps - t.fps))}, so fast motion can look slightly jerky.`,
-      `${all('accepts', 'accept')} ${a.frameRates.map(fmtFps).join(' or ')} fps. An export at ${fmtFps(t.fps)} fps from the editor will look smoothest.`);
+    // Same as Adobe Media Encoder's default ("frame sampling"): frames are dropped evenly.
+    const r = v.fps / t.fps, clean = Math.abs(r - Math.round(r)) < 0.01; // 60 to 30 drops every other frame
+    out.changes.push({ text: `${fmtFps(v.fps)} fps to ${fmtFps(t.fps)} fps`, more: clean ? 'Every other frame is dropped, so nothing repeats.' : 'Frames are dropped evenly, so nothing repeats. This is what editing and encoding software does by default.' });
   }
   else if (t.raises) {
     out.changes.push({ text: `${fmtFps(v.fps)} fps to ${fmtFps(t.fps)} fps, with light grain`, more: 'Raising the frame rate repeats some frames. Grain hides the exact repeats.' });
