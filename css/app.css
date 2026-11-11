@@ -256,6 +256,9 @@ button.link:hover { text-decoration: underline; }
 .result.warn .line { color: var(--warn); }
 .result.bad .line { color: var(--bad); }
 .result .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.result .saved { display: grid; gap: 8px; padding: 12px 14px; border-radius: 10px; background: var(--sheet-2); }
+.result .saved b { overflow-wrap: anywhere; }
+button.primary.small { font-size: 15px; padding: 8px 16px; border-radius: 8px; }
 table.report { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 8px; }
 table.report th, table.report td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; }
 table.report th { color: var(--ink-2); font-weight: 650; }

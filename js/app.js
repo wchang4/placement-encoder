@@ -337,7 +337,9 @@ function updateMake(problems) {
     : !S.video.analysis ? 'Waiting for the check of your video to finish.'
     : blocked ? 'Fix the items marked with a cross first.'
     : S.running ? 'Keep this tab open and in front while the files are made.'
-    : `About ${fmtBytes(total)} in total. You choose where to save ${outs === 1 ? 'it' : 'them'} next.`;
+    : window.showSaveFilePicker && !window.__testSink
+      ? `About ${fmtBytes(total)} in total. Next, your browser asks where to save ${outs === 1 ? 'the file' : 'them (pick a folder)'}.`
+      : `About ${fmtBytes(total)} in total. ${outs === 1 ? 'It goes' : 'They go'} to your Downloads folder.`;
   $('btn-cancel').hidden = !S.running;
 }
 
@@ -547,7 +549,7 @@ async function makeOne(f, i, target) {
       const r = checkName(slot.name.trim() + '.' + ext, slot.rule);
       if (r) rows.push({ label: 'File name' + (f.slots.length > 1 ? ' for ' + joinNames(slot.for) : ''), expected: r.expected, actual: r.actual, status: r.ok ? 'pass' : 'warn', note: r.ok ? '' : slot.rule.note || '' });
     }
-    const where = saved.some(x => x.url) ? 'Saved to your Downloads folder.' : target.dir ? 'Saved in the folder you chose.' : 'Saved where you chose.';
+    const where = saved.some(x => x.how === 'download') ? 'Downloaded to your Downloads folder as' : target.dir ? 'Saved in the folder you chose, as' : 'Saved where you chose, as';
     return { status: overall(rows), rows, notes: [...f.desc.changes.map(c => c.text + '.'), ...notes, ...(levelInfo ? [levelInfo] : [])], saved, where, members: f.members.map(p => p.short) };
   } finally { prog.done(); }
 }
@@ -562,8 +564,8 @@ function resultView(r) {
   const issues = r.rows.filter(x => x.status === 'fail' || x.status === 'warn');
   return el('div', { class: 'result ' + (r.status === 'pass' ? 'ok' : r.status === 'warn' ? 'warn' : 'bad') },
     el('div', { class: 'line', text: line }),
-    el('div', { class: 'row' }, el('span', { class: 'hint', text: r.where + ' ' + r.saved.map(x => x.name).join(', ') }),
-      r.saved.filter(x => x.url).map(x => el('button', { type: 'button', class: 'ghost small', text: 'Download ' + x.name + ' again', onclick: () => triggerDownload(x.url, x.name) }))),
+    el('div', { class: 'saved' }, el('span', {}, r.where + ' ', el('b', { text: r.saved.map(x => x.name).join(', ') })),
+      el('div', { class: 'row' }, r.saved.filter(x => x.url).map(x => el('button', { type: 'button', class: 'primary small', text: r.saved.length > 1 ? 'Download ' + x.name : 'Download a copy', onclick: () => triggerDownload(x.url, x.name) })))),
     issues.length ? el('ul', { class: 'items todo' }, issues.map(x => el('li', { class: x.status === 'fail' ? 'bad' : 'warn' }, `${x.label}: ${x.actual}` + (x.expected ? ` (should be ${x.expected})` : ''), x.note ? el('small', { text: x.note }) : null))) : null,
     el('details', {}, el('summary', { class: 'hint', text: `Full report (${r.rows.length} checks)` }),
       el('table', { class: 'report' }, el('thead', {}, el('tr', {}, ['Check', 'Expected', 'Result', '', 'Note'].map(h => el('th', { text: h })))),
@@ -573,12 +575,14 @@ function resultView(r) {
     el('p', { class: 'hint', style: 'margin:0', text: 'This checks the file against the published spec. Have someone review it before it is sent.' }));
 }
 
+// Saves the file where the person chose (Edge and Chrome), or as a normal download.
+// Either way a download link is kept, so a copy can be saved again from the file's slip.
 async function saveOutput(blob, name, handle) {
-  if (window.__testSink) { await window.__testSink(blob, name); return {}; }
-  if (handle) { const w = await handle.createWritable(); await w.write(blob); await w.close(); return {}; }
   const url = URL.createObjectURL(blob); S.blobUrls.push(url);
+  if (window.__testSink) { await window.__testSink(blob, name); return { url, how: 'test' }; }
+  if (handle) { const w = await handle.createWritable(); await w.write(blob); await w.close(); return { url, how: 'chosen' }; }
   triggerDownload(url, name);
-  return { url };
+  return { url, how: 'download' };
 }
 function triggerDownload(url, name) { const a = el('a', { href: url, download: name }); document.body.append(a); a.click(); a.remove(); }
 
