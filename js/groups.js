@@ -109,7 +109,8 @@ function combine(key, f, lead, members) {
       ...members.flatMap(m => (m.notes || []).map(n => `${shortName(m)}: ${n}`))
     ],
     settings: { ...JSON.parse(JSON.stringify(lead.settings)), ...(f.settings || {}) },
-    loudness: lead.loudness,
+    // If any placement in the file has a loudness rule, the shared file follows it.
+    loudness: members.map(m => m.loudness).find(l => l && l.mode && l.mode !== 'off') || lead.loudness,
     noise: lead.noise,
     spec,
     naming,
