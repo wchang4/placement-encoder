@@ -995,8 +995,8 @@ async function init() {
   const list = all.filter(p => !p.custom);
   const firstAt = new Map(); list.forEach((p, i) => { if (!firstAt.has(brand(p))) firstAt.set(brand(p), i); });
   const ordered = list.map((p, i) => ({ p, i })).sort((a, b) => firstAt.get(brand(a.p)) - firstAt.get(brand(b.p)) || a.i - b.i).map(x => x.p);
-  $('ticks-main').replaceChildren(...ordered.map(tick));
-  $('ticks-custom').replaceChildren(...all.filter(p => p.custom).map(tick));
+  // Custom goes last, in the same grid.
+  $('ticks-main').replaceChildren(...ordered.map(tick), ...all.filter(p => p.custom).map(tick));
   $('reset-preset').addEventListener('click', () => {
     const g = state.groups[state.active]; if (!g) return;
     g.settings = { ...g.defaults, noiseOn: raisesFps(g.defaults) }; state.settings = g.settings;
