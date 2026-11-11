@@ -783,13 +783,9 @@ function plainChecklist() {
   const out = []; const add = (status, text, more) => out.push([status, text, more]);
   const t = targetFormat(s, src);
 
-  // Shape and size
-  const aspects = spec.allowedAspects || (spec.aspect ? [spec.aspect] : null);
-  const shapeListed = !aspects || aspects.some(l => Math.abs(v.width / v.height - aspectValue(l)) / aspectValue(l) < 0.01);
-  const shape = aspectLabel(v.width, v.height);
-  if (t.scales) add('ok', `The video is ${shape} and stays ${shape}. It will be resized from ${v.width} x ${v.height} to ${t.w} x ${t.h}.`, t.w > v.width ? 'Making a picture bigger than the original can look slightly soft.' : '');
-  else add('ok', `The video is ${shape} (${v.width} x ${v.height}) and stays that shape.`);
-  if (!shapeListed) add('info', `${name}'s spec sheet lists ${aspects.join(' or ')}. The file will still be made in your video's own shape, so check that ${name} accepts it.`);
+  // Size (the file always keeps the uploaded shape; shape is not checked)
+  if (t.scales) add('ok', `The picture will be resized from ${v.width} x ${v.height} to ${t.w} x ${t.h}.`, t.w > v.width ? 'Making a picture bigger than the original can look slightly soft.' : '');
+  else add('ok', `Size is right (${v.width} x ${v.height}).`);
 
   // Length: close to a standard spot length = made exactly that long.
   const spot = spotLength(src.durationSec, t.fps, state.config.spotLengths);

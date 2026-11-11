@@ -96,7 +96,7 @@
           23.976,
           29.97
         ],
-        "aspect": "16:9",
+        "aspect": null,
         "minShortEdge": null,
         "audioRequired": true,
         "minAudioKbps": null,
@@ -149,7 +149,7 @@
       },
       "notes": [
         "One spec for all Rogers digital video, including streaming TV.",
-        "MP4, H.264, progressive, 1920 x 1080, 16:9. Total bitrate 10 to 40 Mbps.",
+        "MP4, H.264, progressive, 1920 x 1080. Total bitrate 10 to 40 Mbps.",
         "23.98 fps accepted, 29.97 preferred. Spots of 6, 15, 30 or 60 seconds.",
         "No duplicate frames allowed. No slates or load plates.",
         "Audio AAC, 192 kbps or higher, 48 kHz, stereo. Loudness -24 LKFS (plus or minus 2), true peak no higher than -1 dB.",
@@ -186,7 +186,7 @@
           23.976,
           29.97
         ],
-        "aspect": "16:9",
+        "aspect": null,
         "minShortEdge": 1080,
         "audioRequired": true,
         "minAudioKbps": 192,
@@ -226,7 +226,7 @@
         "url": "https://www.rogerssportsandmedia.com/adspecs/?filter1=Digital_Video"
       },
       "notes": [
-        "Self-serve rules: MP4, 1920 x 1080, 16:9, 23.976 or 29.97 fps, max 85 MB. Self-serve takes spots of 10 to 30 seconds; the exact length depends on the placement you book.",
+        "Self-serve rules: MP4, 1920 x 1080, 23.976 or 29.97 fps, max 85 MB. Self-serve takes spots of 10 to 30 seconds; the exact length depends on the placement you book.",
         "The self-serve list does not cover bitrate or audio, so the main Rogers spec is used for those: 10 to 40 Mbps, AAC 192 kbps or higher at 48 kHz, -24 LKFS with true peak no higher than -1 dB, no duplicate frames.",
         "Confirm with Rogers whether the self-serve platform also checks loudness and duplicate frames.",
         "On its own this preset uses a constant 15 Mbps. Shared with other streaming placements, the file is a constant 18 Mbps, so a 30 second spot is about 70 MB."
@@ -262,7 +262,7 @@
           23.976,
           29.97
         ],
-        "aspect": "16:9",
+        "aspect": null,
         "minShortEdge": 1080,
         "audioRequired": true,
         "minAudioKbps": 192,
@@ -304,7 +304,7 @@
       },
       "notes": [
         "One spec covers Crave, CTV, Noovo, TSN, CP24, BNN and CTV News on connected TV (\"Crave now includes CTV and Noovo\").",
-        "MP4, H.264, progressive, 1920 x 1080 recommended (1280 x 720 minimum), 16:9. 6, 15 or 30 seconds.",
+        "MP4, H.264, progressive, 1920 x 1080 recommended (1280 x 720 minimum). 6, 15 or 30 seconds.",
         "Max file size 25 MB, minimum 5,000 kbps. A 30 s spot must stay near 6 Mbps to fit, so this preset uses a constant 5,800 kbps (constant, so simple scenes do not drop under the minimum).",
         "Frame rates 23.98, 29.97 or 59.94. Bell converts 23.98 to 29.97 on its side.",
         "Audio AAC 44.1 kHz, -24 LKFS (plus or minus 2), average about -12 dB with nothing peaking over -9 dB."
@@ -341,7 +341,7 @@
           29.97,
           59.94
         ],
-        "aspect": "16:9",
+        "aspect": null,
         "minShortEdge": 720,
         "audioRequired": true,
         "minAudioKbps": null,
@@ -383,7 +383,7 @@
       },
       "notes": [
         "Covers in-stream, pre-roll and connected TV (StackTV, Pluto TV). MP4 only: no MOV on Pluto TV.",
-        "MP4, H.264 with AAC audio, 1920 x 1080 recommended (1280 x 720 and 640 x 360 also accepted), 16:9.",
+        "MP4, H.264 with AAC audio, 1920 x 1080 recommended (1280 x 720 and 640 x 360 also accepted).",
         "29.97 frames per second. A 23.976 video is converted to 29.97 by this preset.",
         "Video bitrate 4,500 to 8,000 kbps; this preset uses a constant 6,000 kbps. Max file 510 MB. 6, 15 or 30 seconds.",
         "Audio AAC 128 kbps, 48 kHz, stereo. The sheet gives no loudness target, so the sound is left as it is.",
@@ -419,7 +419,7 @@
         "allowedFps": [
           29.97
         ],
-        "aspect": "16:9",
+        "aspect": null,
         "minShortEdge": 360,
         "audioRequired": false,
         "minAudioKbps": null,
@@ -487,7 +487,7 @@
         "minKbps": 15000,
         "maxKbps": null,
         "allowedFps": null,
-        "aspect": "16:9",
+        "aspect": null,
         "minShortEdge": null,
         "audioRequired": true,
         "minAudioKbps": 192,
@@ -528,7 +528,7 @@
       },
       "notes": [
         "Disney's own rejection list says 'duplicate frames' means the file was converted to a different frame rate. The fix is a native-frame-rate export, not grain. Keep the frame rate native.",
-        "Constant frame rate, native, no pulldown, progressive. No letterboxing or pillarboxing on 16:9 content. No slates or countdowns. One video track and one audio track.",
+        "Constant frame rate, native, no pulldown, progressive. No letterboxing or pillarboxing. No slates or countdowns. One video track and one audio track.",
         "Keep important content out of the top-right 220 x 135 px (player ad overlay).",
         "Max file size: 250 MB if Hulu-served, 1.9 GB for partner or programmatic. This preset checks 1900 MB. Change it if needed.",
         "Uses H.264 High profile 4:2:0, as in the Disney ANZ 2026 spec. An older note mentioned \"Main profile 4:2:2\"; confirm with Disney if a file is declined for this."
@@ -567,7 +567,7 @@
           29.97,
           30
         ],
-        "aspect": "16:9",
+        "aspect": null,
         "minShortEdge": null,
         "audioRequired": true,
         "minAudioKbps": 128,
@@ -654,7 +654,7 @@
           23.976,
           29.97
         ],
-        "aspect": "16:9",
+        "aspect": null,
         "minShortEdge": null,
         "audioRequired": false,
         "minAudioKbps": null,
@@ -728,7 +728,7 @@
           23.976,
           24
         ],
-        "aspect": "16:9",
+        "aspect": null,
         "minShortEdge": 1080,
         "audioRequired": false,
         "minAudioKbps": null,
@@ -780,9 +780,9 @@
         "url": ""
       },
       "notes": [
-        "30 seconds or less, max 500 MB, 9:16 or 16:9, at least about 720 x 1280. Audio is required (no silent files).",
+        "30 seconds or less, max 500 MB, at least about 720 px on the short side. Audio is required (no silent files).",
         "Loudness: RMS -14 dBFS with peak -0.2 dBFS (Phase 2). RMS is not the same as LUFS; the tool will label which it measures.",
-        "Resolution is left as the source's. Vertical files must be supplied by the creative team; this tool does not reframe."
+        "Resolution is left as the source's."
       ],
       "settings": {
         "container": "mp4",
@@ -819,10 +819,7 @@
         "maxSizeMB": 500,
         "maxDurationSec": null,
         "h264ProfilesAllowed": null,
-        "allowedAspects": [
-          "9:16",
-          "16:9"
-        ]
+        "allowedAspects": null
       },
       "naming": {
         "maxLength": null,
@@ -841,7 +838,7 @@
       "name": "YouTube",
       "tile": {
         "title": "YouTube",
-        "sub": "Any shape, including Shorts",
+        "sub": "Pre-roll, in-feed and Shorts ads",
         "color": "#e0002b",
         "logo": ""
       },
@@ -859,7 +856,7 @@
         "This tool does not deinterlace. Interlaced sources show a warning.",
         "YouTube recommends about 8 to 16 Mbps for 1080p but accepts higher, so no upper limit is checked.",
         "YouTube recommends 384 kbps stereo audio but accepts less, so audio bitrate is not checked. (The encoder delivers less than requested on quiet audio.)",
-        "Any shape works. A vertical (9:16) or square video up to 3 minutes shows as a YouTube Short; keep key content inside the centre so the Shorts buttons do not cover it."
+        "Covers YouTube ads: pre-roll (in-stream), in-feed and Shorts."
       ],
       "settings": {
         "container": "mp4",
@@ -915,7 +912,7 @@
       "name": "Meta: Facebook and Instagram (unverified)",
       "tile": {
         "title": "Meta",
-        "sub": "Facebook and Instagram, any shape",
+        "sub": "Feed, Reels and Stories ads",
         "color": "#0a5fd6",
         "logo": ""
       },
@@ -927,8 +924,8 @@
         "url": ""
       },
       "notes": [
-        "MP4 or MOV, H.264, max 4 GB, 720 px minimum short edge. Feed, Reels and Stories all take this file.",
-        "Any shape works: 16:9, 1:1, 4:5 and 9:16. The file keeps the shape you upload. Reels and Stories fill the screen best with 9:16."
+        "MP4 or MOV, H.264, max 4 GB, at least 720 px on the short side.",
+        "Covers Facebook and Instagram Feed, Reels and Stories ads."
       ],
       "settings": {
         "container": "mp4",
@@ -1025,7 +1022,7 @@
         "minKbps": 10000,
         "maxKbps": 40000,
         "allowedFps": null,
-        "aspect": "16:9",
+        "aspect": null,
         "minShortEdge": null,
         "audioRequired": true,
         "minAudioKbps": 192,

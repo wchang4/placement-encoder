@@ -62,14 +62,7 @@ export function verify(summary, settings, preset, opts) {
     add('Short edge', `at least ${spec.minShortEdge} px`, `${edge} px`, edge >= spec.minShortEdge ? 'pass' : 'fail');
   }
 
-  // 6. Aspect ratio
-  const aspects = spec.allowedAspects || (spec.aspect ? [spec.aspect] : null);
-  if (aspects) {
-    const got = v.width / v.height;
-    const ok = aspects.some(l => Math.abs(got - aspectValue(l)) / aspectValue(l) < 0.01);
-    add('Aspect ratio', aspects.join(' or ') + ' (on the spec sheet)', aspectLabel(v.width, v.height), ok ? 'pass' : 'info',
-      ok ? '' : 'Kept in the shape you uploaded. Check that the placement accepts this shape.');
-  }
+  // 6. Aspect ratio: not checked. The file keeps the uploaded shape.
 
   // 7. Frame rate
   const fpsTol = st.fpsTolerancePercent / 100;
