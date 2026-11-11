@@ -295,8 +295,13 @@
       "tile": {
         "title": "CTV",
         "sub": "Local TV stations (adds 10 s of black)",
-        "color": "#1b3f8f",
-        "logo": ""
+        "color": "#e31e18",
+        "logo": "",
+        "colors": [
+          "#e31e18",
+          "#22569f",
+          "#207a46"
+        ]
       },
       "group": "More placements",
       "status": "unverified",
@@ -370,7 +375,7 @@
       "name": "Corus: online video and connected TV",
       "tile": {
         "title": "Corus",
-        "sub": "Pre-roll and CTV: StackTV, Pluto TV",
+        "sub": "Pre-roll and connected TV: StackTV, Pluto TV",
         "color": "#1f2a6b",
         "logo": ""
       },
@@ -1069,7 +1074,7 @@
     },
     "ctv": {
       "label": "Connected TV, small file (MP4, under 25 MB)",
-      "tag": "CTV",
+      "tag": "CONNECTEDTV",
       "settingsFrom": "bell-crave-ctv"
     }
   }

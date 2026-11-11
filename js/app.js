@@ -971,7 +971,10 @@ async function init() {
   const tick = (p) => {
     const tl = p.tile || {};
     const title = tl.title || p.name;
-    const word = () => el('span', { class: 'word', text: title });
+    // tile.colors (optional): several brand colours shown as stripes, e.g. CTV's red, blue and green.
+    const stripes = Array.isArray(tl.colors) && tl.colors.length > 1
+      ? `background:linear-gradient(90deg,${tl.colors.map((c, i, a) => `${c} ${(100 * i / a.length).toFixed(1)}% ${(100 * (i + 1) / a.length).toFixed(1)}%`).join(',')})` : '';
+    const word = () => el('span', { class: 'word', text: title, ...(stripes ? { style: stripes } : {}) });
     const logo = el('div', { class: 'logo' });
     if (tl.logo) {
       const img = el('img', { src: tl.logo, alt: title });
