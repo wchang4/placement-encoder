@@ -393,6 +393,7 @@ function computeWarnings() {
   if (v.sar && v.sar !== '1:1' && v.sar !== '0:1') add('warn', `The source has non-square pixels (${v.sar}).`);
 
   if (spec.maxDurationSec && src.durationSec > spec.maxDurationSec + state.config.strictness.durationToleranceSec) add('warn', `The source is ${src.durationSec.toFixed(1)} s long; ${spec.maxDurationBy || 'this placement'} allows ${spec.maxDurationSec} s.`);
+  if (spec.minDurationSec && src.durationSec < spec.minDurationSec - state.config.strictness.durationToleranceSec) add('warn', `The source is ${src.durationSec.toFixed(1)} s long; ${spec.minDurationBy || 'this placement'} needs at least ${spec.minDurationSec} s.`);
   if (s.vcodec === 'h264' && ((spec.minKbps != null && s.bitrateKbps < spec.minKbps) || (spec.maxKbps != null && s.bitrateKbps > spec.maxKbps)))
     add('warn', `The video bitrate (${s.bitrateKbps} kbps) is outside this placement's range (${spec.minKbps ?? 0} to ${spec.maxKbps ?? 'no limit'} kbps).`);
 
@@ -788,6 +789,8 @@ function plainChecklist() {
   // Length
   if (spec.maxDurationSec && src.durationSec > spec.maxDurationSec + st.durationToleranceSec)
     add('bad', `Too long: ${src.durationSec.toFixed(1)} seconds. ${spec.maxDurationBy || name} allows up to ${spec.maxDurationSec} seconds.`, 'Ask for a shorter cut.');
+  if (spec.minDurationSec && src.durationSec < spec.minDurationSec - st.durationToleranceSec)
+    add('bad', `Too short: ${src.durationSec.toFixed(1)} seconds. ${spec.minDurationBy || name} needs at least ${spec.minDurationSec} seconds.`, 'Ask for a longer cut.');
   else add('ok', `Length is ${src.durationSec.toFixed(1)} seconds.`);
 
   // Frame rate

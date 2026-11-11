@@ -125,7 +125,7 @@
       "name": "Rogers Sports & Media: digital video",
       "tile": {
         "title": "Rogers",
-        "sub": "Streaming and online video",
+        "sub": "Booked with a Rogers rep",
         "color": "#da291c",
         "logo": ""
       },
@@ -185,6 +185,83 @@
         "h264ProfilesAllowed": null,
         "noLetterbox": false,
         "noDuplicateFrames": true
+      },
+      "naming": {
+        "maxLength": null,
+        "allowedChars": null,
+        "note": ""
+      },
+      "loudness": {
+        "mode": "lufs",
+        "targetDb": -24,
+        "peakDb": -1,
+        "note": "-24 LKFS with true peak no higher than -1 dB, per the Rogers spec."
+      }
+    },
+    {
+      "id": "rogers-selfserve",
+      "name": "Rogers self-serve: RSM Ad Manager",
+      "tile": {
+        "title": "Rogers",
+        "sub": "Self-serve (RSM Ad Manager)",
+        "color": "#da291c",
+        "logo": ""
+      },
+      "group": "Main placements",
+      "file": "rogers-selfserve",
+      "status": "unverified",
+      "verifiedDate": "",
+      "source": {
+        "label": "RSM Ad Manager self-serve video and CTV specs (supplied by team 2026-11-11, link not yet added) plus the Rogers Sports & Media digital video spec for anything the self-serve list does not cover",
+        "url": "https://www.rogerssportsandmedia.com/adspecs/?filter1=Digital_Video"
+      },
+      "notes": [
+        "Self-serve rules: MP4, 1920 x 1080, 16:9, 23.976 or 29.97 fps, 10 to 30 seconds, max 85 MB. The exact length depends on the placement you book.",
+        "The self-serve list does not cover bitrate or audio, so the main Rogers spec is used for those: 10 to 40 Mbps, AAC 192 kbps or higher at 48 kHz, -24 LKFS with true peak no higher than -1 dB, no duplicate frames.",
+        "This preset uses a constant 15 Mbps, so a 30 second spot is about 60 MB, well under 85 MB.",
+        "Confirm with Rogers whether the self-serve platform also checks loudness and duplicate frames."
+      ],
+      "settings": {
+        "container": "mp4",
+        "vcodec": "h264",
+        "h264Profile": "high",
+        "proresProfile": "hq",
+        "pixFmt": "yuv420p",
+        "width": 1920,
+        "height": 1080,
+        "fps": "native",
+        "bitrateMode": "cbr",
+        "bitrateKbps": 15000,
+        "x264Preset": "fast",
+        "bframes": 2,
+        "gopSeconds": 0.5,
+        "closedGop": true,
+        "faststart": true,
+        "stripEditLists": true,
+        "tagBt709": true,
+        "acodec": "aac",
+        "sampleRate": 48000,
+        "bitDepth": 16,
+        "channels": 2,
+        "audioKbps": 256
+      },
+      "spec": {
+        "minKbps": 10000,
+        "maxKbps": 40000,
+        "allowedFps": [
+          23.976,
+          29.97
+        ],
+        "aspect": "16:9",
+        "minShortEdge": 1080,
+        "audioRequired": true,
+        "minAudioKbps": 192,
+        "maxSizeMB": 85,
+        "maxDurationSec": 30,
+        "h264ProfilesAllowed": null,
+        "noLetterbox": false,
+        "noDuplicateFrames": true,
+        "minDurationSec": 10
       },
       "naming": {
         "maxLength": null,
@@ -1138,6 +1215,11 @@
       "label": "Vertical 9:16 (MP4)",
       "tag": "VERT",
       "settingsFrom": "youtube-shorts"
+    },
+    "rogers-selfserve": {
+      "label": "Rogers self-serve (MP4, under 85 MB)",
+      "tag": "RSM",
+      "settingsFrom": "rogers-selfserve"
     }
   }
 }

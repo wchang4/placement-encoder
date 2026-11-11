@@ -145,6 +145,11 @@ export function verify(summary, settings, preset, opts) {
     add('Max duration', `${spec.maxDurationSec} s or less`, dur.toFixed(2) + ' s',
       dur <= spec.maxDurationSec ? 'pass' : 'fail');
   }
+  if (spec.minDurationSec) {
+    const dur = summary.durationSec;
+    add('Min duration', `${spec.minDurationSec} s or more`, dur.toFixed(2) + ' s',
+      dur >= spec.minDurationSec - st.durationToleranceSec ? 'pass' : 'fail');
+  }
 
   // 14. File size
   if (spec.maxSizeMB) {

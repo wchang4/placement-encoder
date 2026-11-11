@@ -58,6 +58,7 @@ function combine(key, f, lead, members) {
   };
   const allowedFps = intersect('allowedFps', (a, b) => Math.abs(a - b) / b < 0.001);
   const maxDur = minOf('maxDurationSec');
+  const minDur = maxOf('minDurationSec');
 
   const spec = {
     minKbps: maxOf('minKbps'), maxKbps: minOf('maxKbps'),
@@ -69,6 +70,8 @@ function combine(key, f, lead, members) {
     minAudioKbps: maxOf('minAudioKbps'),
     maxSizeMB: minOf('maxSizeMB'),
     maxDurationSec: maxDur,
+    minDurationSec: minDur,
+    minDurationBy: minDur == null ? '' : whoHas('minDurationSec', v => v === minDur),
     h264ProfilesAllowed: intersect('h264ProfilesAllowed'),
     noLetterbox: specs.some(s => s.noLetterbox),
     barsAllowed: specs.every(s => s.barsAllowed),
