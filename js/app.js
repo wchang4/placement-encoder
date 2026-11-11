@@ -540,14 +540,21 @@ function startClock() {
   progStart = performance.now(); clearInterval(progTimer);
   progTimer = setInterval(() => { $('elapsed').textContent = 'Elapsed ' + fmtTime((performance.now() - progStart) / 1000); }, 500);
 }
+// The progress bar, its Cancel button and any error sit under the step doing the work:
+// step 1 while your video is being checked, step 3 while files are being made.
+function placeProgress(where) {
+  const anchor = where === 'source' ? $('source-status') : $('keepopen');
+  anchor.after($('progress'));
+  $('progress').after($('error'));
+}
 function hideProgress() { clearInterval(progTimer); $('progress').classList.add('hidden'); $('eta').textContent = ''; $('elapsed').textContent = ''; }
 
-async function ensureEngine(stepNo, total, label) {
+async function ensureEngine(stepNo, total, label, word = 'Step') {
   if (engine.ready) return;
   startClock();
-  showProgress(`Step ${stepNo} of ${total}: ${label} (first visit downloads about 31 MB, then it is cached)`, null);
+  showProgress(`${word} ${stepNo} of ${total}: ${label} (first visit downloads about 31 MB, then it is cached)`, null);
   await engine.load((got, tot, cached) => {
-    if (tot) showProgress(`Step ${stepNo} of ${total}: ${label}${cached ? ' (from cache)' : ''}`, got / tot);
+    if (tot) showProgress(`${word} ${stepNo} of ${total}: ${label}${cached ? ' (from cache)' : ''}`, got / tot);
   });
 }
 
@@ -558,7 +565,7 @@ async function onEncode() {
   if (state.running || !state.groups.length) return;
   saveActiveName();
   const n = state.groups.length;
-  clearResult(); showError('');
+  placeProgress('encode'); clearResult(); showError('');
 
   // Ask where to save BEFORE the long encode (needs a click; Chrome/Edge only).
   // One file: a "Save as" box. Several files: choose a folder once.
@@ -681,21 +688,21 @@ function timedProgress(text, duration) {
 // source, and grabs three still frames so a person can spot slates or countdowns.
 async function onPreflight() {
   if (state.running || !state.src) return;
-  state.running = true; update(); showError(''); clearResult();
+  state.running = true; update(); placeProgress('source'); showError(''); clearResult();
   $('btn-cancel').classList.remove('hidden'); $('btn-encode').classList.add('hidden');
   const src = state.src, total = src.audio ? 4 : 3; let n = 1;
   const st = state.config.strictness;
   try {
-    await ensureEngine(1, total, 'Loading the encoder');
+    await ensureEngine(1, total, 'loading the checker', 'Checking your video, part');
     const path = await engine.mountForEncode(state.file);
     startClock();
     const analysis = { audio: null, video: null, thumbs: [] };
     if (src.audio) {
-      showProgress(`Checking your video, step ${++n} of ${total}: measuring the sound`, null);
+      showProgress(`Checking your video, part ${++n} of ${total}: measuring the sound`, null);
       analysis.audio = await measureAudio(engine, path);
     }
-    analysis.video = await scanVideo(engine, path, src.video.fps, st.dupDiffThreshold, pixDepth(src.video.pixFmt), timedProgress(`Checking your video, step ${++n} of ${total}: looking at every frame`, src.durationSec));
-    showProgress(`Checking your video, step ${++n} of ${total}: grabbing preview frames`, null); $('eta').textContent = '';
+    analysis.video = await scanVideo(engine, path, src.video.fps, st.dupDiffThreshold, pixDepth(src.video.pixFmt), timedProgress(`Checking your video, part ${++n} of ${total}: looking at every frame`, src.durationSec));
+    showProgress(`Checking your video, part ${++n} of ${total}: grabbing preview frames`, null); $('eta').textContent = '';
     analysis.thumbs = await grabFrames(engine, path, src.durationSec);
     state.analysis = analysis;
     hideProgress(); renderPreflight(); update();
