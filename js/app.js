@@ -981,8 +981,13 @@ async function init() {
     return b;
   };
   const all = state.config.presets;
-  $('ticks-main').replaceChildren(...all.filter(p => !p.custom && p.group === 'Main placements').map(tick));
-  $('ticks-more').replaceChildren(...all.filter(p => !p.custom && p.group !== 'Main placements').map(tick));
+  // Every placement in one grid. Versions of the same brand (Disney+ MP4 and ProRes,
+  // Cineplex pre-show and lobby) sit side by side so they read as options, not repeats.
+  const brand = (p) => (p.tile?.title || p.name).toLowerCase();
+  const list = all.filter(p => !p.custom);
+  const firstAt = new Map(); list.forEach((p, i) => { if (!firstAt.has(brand(p))) firstAt.set(brand(p), i); });
+  const ordered = list.map((p, i) => ({ p, i })).sort((a, b) => firstAt.get(brand(a.p)) - firstAt.get(brand(b.p)) || a.i - b.i).map(x => x.p);
+  $('ticks-main').replaceChildren(...ordered.map(tick));
   $('ticks-custom').replaceChildren(...all.filter(p => p.custom).map(tick));
   $('reset-preset').addEventListener('click', () => {
     const g = state.groups[state.active]; if (!g) return;
