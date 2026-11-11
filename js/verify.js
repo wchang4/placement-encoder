@@ -131,20 +131,23 @@ export function verify(summary, settings, preset, opts) {
   }
 
   // 13. Duration
+  const tail = opts.tail || 0;
   if (opts.spot) {
     // Made to a standard spot length: check it against the exact frame count.
     const sp = opts.spot, frames = summary.video?.frames;
-    const d = Math.abs(summary.durationSec - sp.exactSec);
-    const ok = frames ? frames === sp.frames : d < 0.5 / (summary.video?.fps || 30);
-    add('Duration', `${sp.seconds} s exactly (${sp.frames} frames)`, summary.durationSec.toFixed(3) + ' s' + (frames ? `, ${frames} frames` : ''),
+    const tailFrames = Math.round(tail * (summary.video?.fps || 30));
+    const wantSec = sp.exactSec + tail, wantFrames = sp.frames + tailFrames;
+    const d = Math.abs(summary.durationSec - wantSec);
+    const ok = frames ? frames === wantFrames : d < 0.5 / (summary.video?.fps || 30);
+    add('Duration', `${sp.seconds} s exactly (${sp.frames} frames)` + (tail ? ` plus ${tail} s of black` : ''), summary.durationSec.toFixed(3) + ' s' + (frames ? `, ${frames} frames` : ''),
       ok ? 'pass' : d <= st.durationToleranceSec ? 'warn' : 'fail');
     // The sound must run the full length too. AAC, and the browser's own probe, add up to
     // about a tenth of a second, so only a real gap fails.
     const ad = summary.audio?.durationSec;
-    if (ad) add('Sound length', 'same as the picture', ad.toFixed(3) + ' s', Math.abs(ad - sp.exactSec) <= 0.15 ? 'pass' : 'fail');
+    if (ad) add('Sound length', 'same as the picture', ad.toFixed(3) + ' s', Math.abs(ad - wantSec) <= 0.15 ? 'pass' : 'fail');
   } else if (src && src.durationSec) {
-    const d = Math.abs(summary.durationSec - src.durationSec);
-    add('Duration', src.durationSec.toFixed(2) + ' s (same as source)', summary.durationSec.toFixed(2) + ' s',
+    const d = Math.abs(summary.durationSec - src.durationSec - tail);
+    add('Duration', src.durationSec.toFixed(2) + ' s (same as source)' + (tail ? ` plus ${tail} s of black` : ''), summary.durationSec.toFixed(2) + ' s',
       d <= st.durationToleranceSec ? 'pass' : d <= 0.5 ? 'warn' : 'fail');
   }
   if (spec.maxDurationSec) {
@@ -168,7 +171,7 @@ export function verify(summary, settings, preset, opts) {
   }
 
   // 15. Measured extras: loudness, duplicate frames, black bars, black frames
-  if (opts.extra) extraRows(summary, settings, preset, opts.extra, st, add, opts.source);
+  if (opts.extra) extraRows(summary, settings, preset, opts.extra, st, add, opts.source, tail);
 
   // 16. File name rule
   const nameRule = checkName(opts.fileName, preset.naming);
@@ -199,7 +202,7 @@ export function overall(rows) {
 }
 
 // Rows that come from analysis passes rather than the file's headers.
-function extraRows(summary, settings, preset, extra, st, add, source) {
+function extraRows(summary, settings, preset, extra, st, add, source, tail = 0) {
   const a = extra.audio, vid = extra.video, spec = preset.spec;
   const fmt = (x) => (x == null ? 'n/a' : !isFinite(x) ? '-inf' : x.toFixed(1));
 
@@ -237,7 +240,9 @@ function extraRows(summary, settings, preset, extra, st, add, source) {
     // Only placements known to reject repeats (spec.noDuplicateFrames), or files where grain
     // was asked for, are judged on this; elsewhere repeats are reported for information.
     if (status !== 'pass' && !spec.noDuplicateFrames && !settings.noiseOn && !d.conversion) status = 'info';
-    let note = `Longest repeat: ${d.longestRun} frames (${d.longestRunSec.toFixed(2)} s).`;
+    // Added black at the end repeats by design.
+    if (tail && status !== 'pass' && !spec.noDuplicateFrames) status = 'info';
+    let note = `Longest repeat: ${d.longestRun} frames (${d.longestRunSec.toFixed(2)} s).` + (tail ? ` This includes the ${tail} s of black added at the end, which repeats by design.` : '');
     if (source?.dupPercent != null) note += ` Source had ${source.dupPercent.toFixed(1)}%.`;
     // Grain can hide a converted source's repeats, but a placement may still see the stutter.
     if (status === 'pass' && source?.conversion) {
@@ -264,7 +269,11 @@ function extraRows(summary, settings, preset, extra, st, add, source) {
     const parts = [];
     if (ends.start) parts.push(`${ends.start.toFixed(2)} s at the start`);
     if (ends.end) parts.push(`${ends.end.toFixed(2)} s at the end`);
-    add('Black frames at start/end', 'none', parts.join(', ') || 'none detected', parts.length ? 'warn' : 'pass');
+    if (tail) {
+      const okTail = ends.end && Math.abs(ends.end - tail) <= 0.6 && !ends.start;
+      add('Black frames at start/end', `${tail} s at the end only`, parts.join(', ') || 'none detected', okTail ? 'pass' : 'warn',
+        okTail ? '' : 'The black at the end should be about ' + tail + ' s. More black usually means the video itself already ended on black.');
+    } else add('Black frames at start/end', 'none', parts.join(', ') || 'none detected', parts.length ? 'warn' : 'pass');
     // Interlacing
     if (vid.idet && (vid.idet.progressive + vid.idet.tff + vid.idet.bff) > 0) {
       add('Interlacing (frame analysis)', 'progressive', vid.idet.interlacedPercent < 5 ? 'progressive' : vid.idet.interlacedPercent.toFixed(0) + '% interlaced frames', vid.idet.interlacedPercent < 5 ? 'pass' : 'warn');

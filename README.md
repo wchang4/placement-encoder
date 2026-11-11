@@ -44,6 +44,8 @@ The `strictness` block sets how PASS / WARN / FAIL are decided, and `limits` set
 
 Every file keeps the shape of the uploaded video. A preset's `width` x `height` is its size for its own shape; a different shape gets the same short edge (a 1920 x 1080 preset makes 1080 x 1080 from a square and 1080 x 1920 from a vertical). Shape is not checked.
 
+`settings.tailBlackSec` adds that many seconds of black and silence at the end of the file (CTV local stations: 10). It is added after the spot is cut to its exact length.
+
 The `spotLengths` block lists the standard spot lengths (6, 15, 30 and 60 seconds). A video within `snapWithinSec` (0.5 s) of one of them is made exactly that long: a little extra is cut, and if it is a little short the last frame is held with silence. Length is counted in frames, the way broadcast timecode counts it, so 6 seconds at 29.97 fps is 180 frames (6.006 s on a clock), and at 25 or 30 fps it is exactly 6.000 s. Placement length limits are not checked.
 
 ## Deploying to GitHub Pages

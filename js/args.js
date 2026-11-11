@@ -61,6 +61,14 @@ export function buildArgs(settings, src, inPath, outName, opts = {}) {
   const spot = opts.spot || null;
   if (spot && spot.pad) vf.push(`tpad=stop_mode=clone:stop_duration=${(spot.pad + 0.2).toFixed(3)}`);
   if (s.noiseOn) vf.push(`noise=alls=${Math.round(s.noiseStrength)}:allf=t+u`);
+  // Black at the end (local CTV stations ask for 10 s): cut the spot to its exact
+  // length first, then add pure black (after the grain, so the black stays clean).
+  const tail = s.tailBlackSec > 0 ? s.tailBlackSec : 0;
+  const mainSec = spot ? spot.exactSec : src.durationSec;
+  if (tail) {
+    vf.push(spot ? `trim=end_frame=${spot.frames}` : `trim=end=${mainSec.toFixed(6)}`, 'setpts=PTS-STARTPTS');
+    vf.push(`tpad=stop_mode=add:stop_duration=${tail}:color=black`);
+  }
   // Colour labels must also be set on the frames themselves: the -colorspace options
   // alone left ProRes files with "unknown" primaries/transfer when the source was untagged.
   if (s.tagBt709) vf.push('setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709');
@@ -113,7 +121,7 @@ export function buildArgs(settings, src, inPath, outName, opts = {}) {
       args.push('-c:a', 'aac', '-b:a', Math.round(s.audioKbps) + 'k');
     }
     // Silence fills any gap at the end, so the sound is exactly as long as the picture.
-    const af = [opts.audioFilter, spot ? 'apad' : null].filter(Boolean).join(',');
+    const af = [opts.audioFilter, tail ? `atrim=end=${mainSec.toFixed(6)},asetpts=PTS-STARTPTS` : null, (spot || tail) ? 'apad' : null].filter(Boolean).join(',');
     if (af) args.push('-af', af);
     args.push('-ar', String(s.sampleRate), '-ac', String(s.channels));
   } else {
@@ -129,8 +137,8 @@ export function buildArgs(settings, src, inPath, outName, opts = {}) {
   // A standard spot is cut to an exact number of frames. Only -t is used: -frames:v
   // closed the file as soon as the last picture was written, while the sound leveling
   // was still about 3 s behind, which cut the audio short (tested).
-  if (spot) args.push('-t', spot.exactSec.toFixed(6));
-  else if (src.durationSec > 0) args.push('-t', src.durationSec.toFixed(3));
+  if (spot) args.push('-t', (spot.exactSec + tail).toFixed(6));
+  else if (src.durationSec > 0) args.push('-t', (src.durationSec + tail).toFixed(3));
   args.push('-y', outName);
   return { args, notes };
 }

@@ -392,7 +392,7 @@ function computeWarnings() {
     add('warn', `The video bitrate (${s.bitrateKbps} kbps) is outside this placement's range (${spec.minKbps ?? 0} to ${spec.maxKbps ?? 'no limit'} kbps).`);
 
   // size estimate and memory guard
-  const est = estimateOutputBytes(s, t.w, t.h, t.fps, spotLength(src.durationSec, t.fps, state.config.spotLengths)?.exactSec || src.durationSec);
+  const est = estimateOutputBytes(s, t.w, t.h, t.fps, (spotLength(src.durationSec, t.fps, state.config.spotLengths)?.exactSec || src.durationSec) + (s.tailBlackSec > 0 ? s.tailBlackSec : 0));
   const estMB = est / 1048576, lim = state.config.limits;
   $('est').textContent = 'Estimated output: about ' + fmtBytes(est) + (s.vcodec === 'prores' ? ' (upper estimate)' : '');
   if (estMB >= lim.memoryBlockMB) add('bad', `The output is expected to be about ${fmtBytes(est)}. That is more than this browser tool can safely handle (limit ${lim.memoryBlockMB} MB) and the tab would likely crash. Use H.264, a shorter clip, or desktop encoding software.`, true);
@@ -625,6 +625,7 @@ async function encodeOne(i, n, target) {
   const spot = spotLength(state.src.durationSec, targetFormat(s, state.src).fps, state.config.spotLengths);
   const { args, notes } = buildArgs(s, state.src, path, memName, { audioFilter, spot });
   if (spot) notes.push(spotNote(spot, state.src.durationSec));
+  if (s.tailBlackSec > 0) notes.push(`${s.tailBlackSec} seconds of black and silence were added at the end.`);
   if (levelInfo) notes.push(levelInfo);
   if (s.noiseOn) notes.push(`Light grain was added (strength ${s.noiseStrength}).`);
   await engine.encode(args, timedProgress(label('Encoding video'), dur));
@@ -652,7 +653,7 @@ async function encodeOne(i, n, target) {
 
   hideProgress();
   const source = { ...state.src, dupPercent: state.analysis?.video?.dups?.percent, conversion: state.analysis?.video?.dups?.conversion };
-  const rows = verify(outSummary, s, state.preset, { source, fileName: outFile, strictness: state.config.strictness, extra, spot });
+  const rows = verify(outSummary, s, state.preset, { source, fileName: outFile, strictness: state.config.strictness, extra, spot, tail: s.tailBlackSec > 0 ? s.tailBlackSec : 0 });
   showResult((n > 1 ? `File ${i + 1} of ${n}: ` : 'Encoded: ') + outFile, rows, notes, saved.note, saved.url ? { url: saved.url, name: outFile } : null);
 }
 
@@ -792,6 +793,7 @@ function plainChecklist() {
   if (spot && (spot.cut || spot.pad)) add('ok', `Length is ${src.durationSec.toFixed(2)} seconds. The file will be made exactly ${spot.seconds} seconds.`, spot.cut ? `The last ${spot.cut.toFixed(2)} s will be cut.` : `The last frame will be held for ${spot.pad.toFixed(2)} s to fill the time.`);
   else if (spot) add('ok', `Length is exactly ${spot.seconds} seconds.`);
   else add('info', `Length is ${src.durationSec.toFixed(1)} seconds. That is not close to a standard ${(state.config.spotLengths?.lengths || []).join(', ')} second spot, so it will be kept as it is.`);
+  if (s.tailBlackSec > 0) add('ok', `${s.tailBlackSec} seconds of black and silence will be added at the end, as ${name} requires.`);
 
   // Frame rate
   if (spec.allowedFps && !spec.allowedFps.some(f => Math.abs(f - v.fps) / f < 0.001))
