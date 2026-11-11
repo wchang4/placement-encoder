@@ -485,8 +485,9 @@ async function loadFile(file) {
   state.file = file; state.src = null; state.analysis = null; $('check-area').classList.add('hidden'); update();
   $('source-status').textContent = 'Reading ' + file.name + '...';
   try {
-    await ensureEngine(1, 1, 'Loading the encoder');
-    showProgress('Reading the file', null);
+    placeProgress('source'); // reading the file belongs to step 1
+    await ensureEngine(1, 1, 'loading the checker', '');
+    showProgress('Checking your video: reading the file', null);
     state.srcProbe = await engine.probe(file);
     state.src = summarize(state.srcProbe);
     if (!state.src.video) throw new Error('No video track was found in this file.');
@@ -553,9 +554,11 @@ function hideProgress() { clearInterval(progTimer); $('progress').classList.add(
 async function ensureEngine(stepNo, total, label, word = 'Step') {
   if (engine.ready) return;
   startClock();
-  showProgress(`${word} ${stepNo} of ${total}: ${label} (first visit downloads about 31 MB, then it is cached)`, null);
+  // word '' = no numbering ("Checking your video: loading the checker")
+  const head = word ? `${word} ${stepNo} of ${total}: ${label}` : `Checking your video: ${label}`;
+  showProgress(`${head} (first visit downloads about 31 MB, then it is cached)`, null);
   await engine.load((got, tot, cached) => {
-    if (tot) showProgress(`${word} ${stepNo} of ${total}: ${label}${cached ? ' (from cache)' : ''}`, got / tot);
+    if (tot) showProgress(`${head}${cached ? ' (from cache)' : ''}`, got / tot);
   });
 }
 
@@ -698,16 +701,16 @@ async function onPreflight() {
   const src = state.src, total = src.audio ? 4 : 3; let n = 1;
   const st = state.config.strictness;
   try {
-    await ensureEngine(1, total, 'loading the checker', 'Checking your video, part');
+    await ensureEngine(1, total, 'loading the checker', '');
     const path = await engine.mountForEncode(state.file);
     startClock();
     const analysis = { audio: null, video: null, thumbs: [] };
     if (src.audio) {
-      showProgress(`Checking your video, part ${++n} of ${total}: measuring the sound`, null);
+      showProgress(`Checking your video: measuring the sound`, null);
       analysis.audio = await measureAudio(engine, path);
     }
-    analysis.video = await scanVideo(engine, path, src.video.fps, st.dupDiffThreshold, pixDepth(src.video.pixFmt), timedProgress(`Checking your video, part ${++n} of ${total}: looking at every frame`, src.durationSec));
-    showProgress(`Checking your video, part ${++n} of ${total}: grabbing preview frames`, null); $('eta').textContent = '';
+    analysis.video = await scanVideo(engine, path, src.video.fps, st.dupDiffThreshold, pixDepth(src.video.pixFmt), timedProgress(`Checking your video: looking at every frame`, src.durationSec));
+    showProgress(`Checking your video: grabbing preview frames`, null); $('eta').textContent = '';
     analysis.thumbs = await grabFrames(engine, path, src.durationSec);
     state.analysis = analysis;
     hideProgress(); renderPreflight(); update();
@@ -753,11 +756,16 @@ function renderPreflight() {
   const body = el('tbody');
   for (const [l, r, stt, note] of rows) body.append(el('tr', {}, el('td', { text: l }), el('td', { text: r }), el('td', {}, el('span', { class: 'tag ' + stt, text: stt.toUpperCase() })), el('td', { class: 'note', text: note })));
   table.append(body);
-  $('checklist').replaceChildren(...plainChecklist().map(checkItem));
   const g = state.groups[state.active], n = state.groups.length;
-  $('check-for').textContent = !n ? 'your video (general checks only: tick a placement in step 2 to check against its spec)'
-    : state.preset.custom ? 'your settings'
-    : (n > 1 ? `file ${state.active + 1} of ${n} (${g.label}): ` : '') + state.preset.name;
+  // No placement chosen yet: just describe the video, without judging it.
+  $('checklist').replaceChildren(...(n ? plainChecklist() : videoFacts()).map(checkItem));
+  $('check-hint').classList.toggle('hidden', !!n);
+  if (!n) $('check-head').textContent = 'Your video';
+  else {
+    $('check-head').replaceChildren('Automatic check for ', el('span', { id: 'check-for' }));
+    $('check-for').textContent = state.preset.custom ? 'your settings'
+      : (n > 1 ? `file ${state.active + 1} of ${n} (${g.label}): ` : '') + state.preset.name;
+  }
   // Preview frames, with the preset's documented safe-zone guides drawn on top.
   const zones = state.preset.safeZones || [];
   const vw = src.video.width, vh = src.video.height;
@@ -787,6 +795,28 @@ function renderPreflight() {
 function checkItem([status, text, more]) {
   const icon = { ok: '✓', warn: '!', bad: '✕', info: 'i' }[status];
   return el('li', { class: status }, el('span', { class: 'ic', text: icon }), el('div', {}, text, more ? el('small', { text: more }) : null));
+}
+
+// What the video is, in plain words, before any placement is chosen. No ticks or
+// crosses: nothing is judged until there is a placement to judge it against.
+function videoFacts() {
+  const a = state.analysis, src = state.src, v = src.video, st = state.config.strictness;
+  const out = []; const add = (text, more) => out.push(['info', text, more]);
+  add(`Size: ${v.width} x ${v.height}`);
+  add(`Length: ${src.durationSec.toFixed(2)} seconds`);
+  add(`Frame rate: ${fmtFps(v.fps)} fps`);
+  if (!src.audio) add('Sound: none');
+  else if (a.audio?.silent) add('Sound: the track is silent');
+  else if (a.audio) add(`Sound: average ${a.audio.rms.toFixed(1)} dB, peak ${a.audio.samplePeak.toFixed(1)} dB`);
+  else add('Sound: found');
+  const d = a.video.dups;
+  add(d.percent > st.dupPassPercent ? `Repeated frames: ${d.percent.toFixed(1)}% (longest hold ${d.longestRunSec.toFixed(1)} s)` : 'Repeated frames: none');
+  const bars = describeBars(a.video.crop, v.width, v.height, st.barTolerancePx);
+  add(`Black bars: ${bars || 'none'}`);
+  const ends = describeBlackEnds(a.video.black, src.durationSec);
+  if (ends.start || ends.end) add('Black frames: ' + [ends.start ? `${ends.start.toFixed(1)} s at the start` : '', ends.end ? `${ends.end.toFixed(1)} s at the end` : ''].filter(Boolean).join(', '));
+  if (a.video.idet && a.video.idet.interlacedPercent >= 5) add('Scan: interlaced (an older TV format)');
+  return out;
 }
 
 // The automatic check in plain words, judged against the chosen placement.
