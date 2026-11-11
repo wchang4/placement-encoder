@@ -989,8 +989,8 @@ async function init() {
     return b;
   };
   const all = state.config.presets;
-  // Every placement in one grid. Versions of the same brand (Disney+ MP4 and ProRes,
-  // or two Rogers options) sit side by side so they read as options, not repeats.
+  // Every placement in one grid. Versions of the same brand, if a preset list ever has them,
+  // sit side by side so they read as options, not repeats.
   const brand = (p) => (p.tile?.title || p.name).toLowerCase();
   const list = all.filter(p => !p.custom);
   const firstAt = new Map(); list.forEach((p, i) => { if (!firstAt.has(brand(p))) firstAt.set(brand(p), i); });
