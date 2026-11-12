@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Placement Encoder</title>
+<title>Video Encoder</title>
 <script>
   // Theme before first paint: the saved choice, else the computer's setting.
   try { const t = localStorage.getItem('pe-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
@@ -14,11 +14,12 @@
 <div class="wrap">
 
 <header class="top">
-  <div>
-    <p class="eyebrow"><span class="org">CAA North &amp; East Ontario</span><span class="kind">Internal video encoding tool</span></p>
-    <h1>Placement Encoder</h1>
-    <p class="lede">Drop in a finished ad, choose where it is running, and get a file made to each placement's spec. Everything happens in this browser tab; your video never leaves this computer.</p>
-  </div>
+  <div class="head">
+    <a class="brand" href="index.html" aria-label="CAA North &amp; East Ontario: Video Encoder home"><img class="logo logo-colour" src="img/caaneo-colour.svg" alt="CAA North &amp; East Ontario"><img class="logo logo-white" src="img/caaneo-white.svg" alt=""></a>
+    <div>
+    <h1>Video Encoder</h1>
+    <p class="lede">Internal placement encoding tool for CAA North &amp; East Ontario. Drop in a finished ad, choose where it is running, and get a file made to each placement's spec. Everything happens in this browser tab; your video never leaves this computer.</p>
+  </div></div>
   <div class="top-tools">
     <a href="guide.html">How it works</a>
     <button type="button" class="theme-switch" id="theme-switch" role="switch" aria-checked="false" aria-label="Dark mode">

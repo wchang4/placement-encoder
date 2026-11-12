@@ -66,10 +66,15 @@ b, strong { font-weight: 700; }
 
 /* ---------- header ---------- */
 .top { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 28px; }
-/* Says whose tool this is and what it is for, above every page title. */
-.eyebrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 10px; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-.eyebrow .org { color: #fff; background: #0b4ea2; /* CAA blue, same placeholder as --accent */ padding: 3px 9px; border-radius: 6px; }
-.eyebrow .kind { color: var(--ink-2); }
+/* CAA NEO logo from the brand kit: colour on light, white on dark. */
+.head { display: flex; align-items: center; gap: 20px; }
+.brand { flex-shrink: 0; line-height: 0; }
+.logo { height: 76px; width: auto; display: block; }
+.logo-white { display: none; }
+:root[data-theme="dark"] .logo-colour { display: none; }
+:root[data-theme="dark"] .logo-white { display: block; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .logo-colour { display: none; } :root:not([data-theme="light"]) .logo-white { display: block; } }
+@media (max-width: 560px) { .head { flex-direction: column; align-items: flex-start; gap: 12px; } .logo { height: 60px; } }
 .top h1 { margin: 0 0 6px; font-size: 30px; line-height: 1.15; font-weight: 800; letter-spacing: -.01em; }
 .lede { margin: 0; color: var(--ink-2); max-width: 60ch; }
 .top-tools { display: flex; align-items: center; gap: 18px; flex-shrink: 0; padding-top: 6px; }
