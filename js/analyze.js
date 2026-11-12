@@ -135,11 +135,18 @@ export async function measureLoudnorm(engine, path, target, onTime) {
   return parseLoudnorm(lines);
 }
 
-// Frame-by-frame duplicate scan only (used after encoding).
+// The repeated-frame comparison works on a small copy of each frame: the brightness plane,
+// raised to 16-bit (so shrinking does not round tiny differences up or down), shrunk to
+// 480 wide. Measured on a 15 s HD spot: 12 s instead of 35 s. It also counts a held end
+// card as held throughout (full size, codec noise split it into shorter runs), and light
+// grain still separates every frame (smallest difference 0.26 against a 0.05 threshold).
+const DUP_CHAIN = 'extractplanes=y,format=gray16le,scale=480:-2:flags=area,tblend=all_mode=difference,signalstats,metadata=print:key=lavfi.signalstats.YAVG';
+const DUP_DEPTH = 16;
+
+// Frame-by-frame duplicate scan only.
 export async function scanDuplicates(engine, path, fps, threshold, bitDepth, onTime) {
-  const vf = 'extractplanes=y,tblend=all_mode=difference,signalstats,metadata=print:key=lavfi.signalstats.YAVG';
-  const lines = await run(engine, ['-i', path, '-map', '0:v:0', '-an', '-vf', vf, '-f', 'null', '-'], 'duplicate-frame scan', onTime);
-  return dupStats(parseFrameDiffs(lines, bitDepth), fps, threshold);
+  const lines = await run(engine, ['-i', path, '-map', '0:v:0', '-an', '-vf', DUP_CHAIN, '-f', 'null', '-'], 'duplicate-frame scan', onTime);
+  return dupStats(parseFrameDiffs(lines, DUP_DEPTH), fps, threshold);
 }
 
 // Full video preflight in ONE decode: interlacing, black bars, black frames and duplicates.
@@ -151,17 +158,14 @@ export async function scanVideo(engine, path, fps, threshold, bitDepth, onTime) 
     // limit as a fraction (24/255) so it means the same for 8-bit H.264 and 10-bit ProRes
     'cropdetect=limit=0.094:round=2:reset=1',
     'blackdetect=d=0.05:pix_th=0.10',
-    'extractplanes=y',
-    'tblend=all_mode=difference',
-    'signalstats',
-    'metadata=print:key=lavfi.signalstats.YAVG'
+    DUP_CHAIN
   ].join(',');
   const lines = await run(engine, ['-i', path, '-map', '0:v:0', '-an', '-vf', vf, '-f', 'null', '-'], 'video analysis', onTime);
   return {
     idet: parseIdet(lines),
     crop: parseCrop(lines),
     black: parseBlack(lines),
-    dups: dupStats(parseFrameDiffs(lines, bitDepth), fps, threshold)
+    dups: dupStats(parseFrameDiffs(lines, DUP_DEPTH), fps, threshold)
   };
 }
 
