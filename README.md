@@ -95,4 +95,4 @@ Account `wchang4`, repository `placement-encoder`, branch `main`, folder `/ (roo
 - The finished file is held in memory before saving. About 0.8 GB and up is risky on 8 GB computers; 1.5 GB and up is blocked.
 - The tool never crops or reframes, and does not add captions or described video.
 - All placements are unverified until confirmed with the placement. Open questions: Cineplex average level (-12 vs -10 dB), Cineplex 8-bit vs 10-bit ProRes wording, the Disney+ "Main profile 4:2:2" contradiction, the Rogers self-serve specs (RSM Ad Manager help pages could not be reached), and how Landmark's "-12" audio wording should be read.
-- `#0b4ea2` in `css/app.css` stands in for CAA blue until Marketing confirms the exact value.
+- CAA NEO blue `#00428b` in `css/app.css` comes from the brand kit logo. Dark mode uses a lighter tint of it so links and buttons stay readable.

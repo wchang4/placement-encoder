@@ -20,13 +20,13 @@
   --ink-2: #4b5b71;
   --ink-3: #74839a;
   --rule: #d3dbe5;
-  --accent: #0b4ea2;          /* CAA blue: confirm the exact value with Marketing */
+  --accent: #00428b;          /* CAA NEO blue, from the brand kit logo (dark mode uses a lighter tint for contrast) */
   --accent-ink: #ffffff;
   --accent-soft: #e2ecfa;
   --ok: #17784a;   --ok-soft: #e1f3ea;
   --warn: #8f5200; --warn-soft: #fcefd9;
   --bad: #b4261a;  --bad-soft: #fbe4e1;
-  --focus: #0b4ea2;
+  --focus: #00428b;
   --shadow: 0 1px 0 rgba(18, 34, 58, .06), 0 8px 24px -16px rgba(18, 34, 58, .35);
   color-scheme: light;
 }
