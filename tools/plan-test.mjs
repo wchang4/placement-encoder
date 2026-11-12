@@ -25,7 +25,7 @@ check('shared streaming file must avoid repeated frames (Rogers)', stream.rules.
 
 // 3. Single placements get the settings found by hand.
 const one = (id, len = 30) => files([id], len)[0].rules;
-check('Cineplex: ProRes HQ, sound limits -12/-8', one('cineplex').format === 'mov-prores-hq' && one('cineplex').loudness.mode === 'max');
+check('Cineplex: ProRes 422 (HQ also accepted), sound limits -12/-8', one('cineplex').format === 'mov-prores-422' && one('cineplex').loudness.mode === 'max');
 check('Landmark: H.264 at 55 Mbps', one('landmark').videoOut === 55000, String(one('landmark').videoOut));
 check('Corus: 7.2 Mbps (inside 4.5 to 8), 128 kbps audio', one('corus').videoOut === 7200 && one('corus').audioOut === 128, `${one('corus').videoOut} ${one('corus').audioOut}`);
 const bell = one('crave-bell');

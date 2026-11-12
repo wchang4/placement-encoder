@@ -120,6 +120,7 @@
       },
       "accepts": {
         "formats": [
+          "mov-prores-422",
           "mov-prores-hq"
         ],
         "shortEdge": 1080,
@@ -158,10 +159,10 @@
       ],
       "notes": [
         "Audio: the written rule is used (average no higher than -12 dB, peaks no higher than -8 dB). The '-10db' in the spec table is not treated as a target.",
-        "The PDF says 8-bit, but ProRes 422 HQ is normally 10-bit. Confirm with Cineplex. This preset uses standard 10-bit ProRes 422 HQ.",
         "File names: max 12 characters, no special characters, end with a language letter (E = English, F = French), for example NAMEE.MOV. Type the name yourself.",
         "Text-safe area is 1724 x 972. Video files only, no stills.",
-        "Sound: Cineplex sets limits, not a target: average no higher than -12 dB, peaks no higher than -8 dB. Quieter audio is left as it is; louder audio is turned down."
+        "Sound: Cineplex sets limits, not a target: average no higher than -12 dB, peaks no higher than -8 dB. Quieter audio is left as it is; louder audio is turned down.",
+        "The sheet says the QuickTime info must read \"Apple ProRes/Apple ProRes HQ\", so ProRes 422 and ProRes 422 HQ are both accepted. This tool makes ProRes 422 (about 30% smaller, about 550 MB for 30 s); a ProRes 422 HQ video is already good to go. The sheet also says 8-bit; ProRes is 10-bit, which is standard."
       ]
     },
     {
