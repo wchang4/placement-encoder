@@ -153,10 +153,7 @@ function slipStatus(f, nameProblems) {
   if (f.desc.blocked) return ['bad', 'Cannot be made as is'];
   if (f.desc.waiting) return ['', 'Waiting for your video'];
   if (!S.video.analysis) return ['', 'Checking your video'];
-  const np = nameProblems.flat();
-  if (np.some(x => x.level === 'bad')) return ['bad', 'Needs a file name'];
-  if (f.desc.todo.length || np.length) return ['warn', `${plural(f.desc.todo.length + np.length, 'thing', 'things')} to look at`];
-  return ['ok', 'Ready'];
+  return ['need', 'New file needed'];
 }
 
 function renderFiles() {
@@ -177,9 +174,8 @@ function slip(f, i, n, problems) {
 
   node.append(el('div', { class: 'slip-head' },
     el('div', {},
-      el('h3', { class: 'slip-title' }, n > 1 ? el('span', { class: 'of', text: `File ${i + 1} of ${n}` }) : null, d.format || 'Cannot be made'),
-      el('p', { class: 'slip-for', text: 'For ' + joinNames(f.members.map(p => p.name)) }),
-      el('div', { class: 'badges' }, f.members.map(p => badge(p)))),
+      n > 1 ? el('p', { class: 'slip-of', text: `File ${i + 1} of ${n}` }) : null,
+      el('h3', { class: 'slip-title', 'aria-label': 'For ' + joinNames(f.members.map(p => p.name)) }, f.members.map(p => { const b = badge(p); b.title = p.name; return b; }))),
     el('span', { class: 'status ' + st, text: stText })));
 
   node.append(readout(f));
@@ -189,14 +185,11 @@ function slip(f, i, n, problems) {
   } else if (!d.waiting && f.rules) {
     if (f.asIs?.ok) node.append(el('div', { class: 'asis-undo' }, el('span', { class: 'hint', text: 'Your video is already good to go for this file; a new one will be made anyway.' }),
       el('button', { type: 'button', class: 'link', text: 'Use my video as it is', onclick: () => { delete S.makeAnyway[f.key]; replan(); } })));
-    const list = (cls, items, empty) => el('ul', { class: 'items ' + cls },
-      items.length ? items.map(x => el('li', { class: x.level || '' }, x.text, x.more ? el('small', { text: x.more }) : null))
-        : el('li', { class: 'none', text: empty }));
-    const body = el('div', { class: 'slip-body' },
-      el('div', {}, el('h4', { text: 'The tool will' }), list('do', d.changes, 'Make it as it is. Nothing needs changing.')),
-      el('div', {}, el('h4', { text: 'You need to' }), list('todo', d.todo, S.video.analysis ? 'Nothing. Check the name below.' : 'Wait for the check of your video to finish.')));
-    if (d.good.length) body.append(el('div', { class: 'good-wrap' }, el('h4', { text: 'Good to know' }), list('good', d.good, '')));
-    node.append(body);
+    const list = (cls, items) => el('ul', { class: 'items ' + cls },
+      items.map(x => el('li', { class: x.level || '' }, x.text, x.more ? el('small', { text: x.more }) : null)));
+    node.append(changesTable(f));
+    if (d.todo.length) node.append(el('div', { class: 'todo-box' }, el('h4', { text: 'Before you make it' }), list('todo', d.todo)));
+    if (d.good.length) node.append(el('div', { class: 'good-box' }, el('h4', { text: 'Good to know' }), list('good', d.good)));
 
     node.append(el('div', { class: 'names' }, f.slots.map((slot, j) => nameRow(f, slot, j, i, nameProblems[j]))));
   } else if (f.rules) {
@@ -215,6 +208,22 @@ function slip(f, i, n, problems) {
   if (S.results[f.key]) run.append(resultView(S.results[f.key]));
   node.append(run);
   return node;
+}
+
+// Your video next to the new file: what changes, row by row.
+function changesTable(f) {
+  const rows = f.desc.diff || [];
+  const lead = S.video.analysis ? 'Your video doesn\u2019t meet the spec as it is, so the tool makes a new file. Here is what changes:'
+    : 'The tool will make a new file. The full list of changes appears when the check of your video finishes.';
+  return el('div', { class: 'changes' },
+    el('p', { class: 'changes-lead', text: lead }),
+    el('table', { class: 'diff' },
+      el('thead', {}, el('tr', {}, el('th', { scope: 'col' }), el('th', { scope: 'col', text: 'Your video' }), el('th', { scope: 'col', 'aria-label': 'becomes' }), el('th', { scope: 'col', text: 'New file' }))),
+      el('tbody', {}, rows.map(r => el('tr', {},
+        el('th', { scope: 'row', text: r.label }),
+        el('td', { class: 'from', text: r.from }),
+        el('td', { class: 'arrow', 'aria-hidden': 'true', text: '\u2192' }),
+        el('td', { class: 'to' }, r.to, r.note ? el('small', { text: r.note }) : null))))));
 }
 
 // The video already meets this file's spec: say so plainly, and that nothing more is needed.
@@ -249,6 +258,7 @@ function readout(f) {
         el('span', { class: 't' }, tc.hms, el('span', { class: 'ff', text: ':' + tc.ff })),
         el('span', { class: 'u', text: `${tc.frames} frames at ${fmtFps(v.fps)} fps, your video as it is` })),
       el('dl', { class: 'specs' },
+        el('dt', { text: 'File type' }), el('dd', { text: v.codec === 'h264' ? `${String(src.container).toUpperCase()} (H.264)` : v.codec === 'prores' ? 'ProRes MOV' : v.codec }),
         el('dt', { text: 'Picture' }), el('dd', { text: `${v.width} x ${v.height}` }),
         el('dt', { text: 'Frame rate' }), el('dd', { text: fmtFps(v.fps) + ' fps' }),
         el('dt', { text: 'Video' }), el('dd', { text: v.codec === 'prores' ? 'ProRes' : v.kbps ? mbps(v.kbps) : v.codec }),
@@ -261,6 +271,7 @@ function readout(f) {
       el('span', { class: 't' }, tc.hms, el('span', { class: 'ff', text: ':' + tc.ff })),
       el('span', { class: 'u', text: `${tc.frames} frames at ${fmtFps(t.fps)} fps${tail}` })),
     el('dl', { class: 'specs' },
+      el('dt', { text: 'File type' }), el('dd', { text: d.format }),
       el('dt', { text: 'Picture' }), el('dd', { text: `${t.w} x ${t.h}` }),
       el('dt', { text: 'Frame rate' }), el('dd', { text: fmtFps(t.fps) + ' fps' }),
       el('dt', { text: 'Video' }), el('dd', { text: s.vcodec === 'prores' ? 'ProRes ' + (s.proresProfile === 'hq' ? '422 HQ' : '422') : mbps(s.bitrateKbps) }),

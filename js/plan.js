@@ -143,7 +143,9 @@ export function planFiles(chosen, cfg, ctx = {}) {
     const tail = list[0].accepts?.tailBlackSec || 0;
     const r = combine(list, cfg, length(tail));
     const sameKind = r.ok && list.length > 1 ? chosen.every((p, i) => !(m & (1 << i)) || ownCodec[i] === cfg.formats[r.rules.format].vcodec) : true;
-    if (r.ok && sameKind) ok.set(m, { rules: r.rules });
+    // "ownFile": true (cinema spots such as Cineplex and Landmark) always gets a file of its own.
+    const alone = list.length > 1 && list.some(p => p.ownFile);
+    if (r.ok && sameKind && !alone) ok.set(m, { rules: r.rules });
     // A placement that cannot be made even on its own still gets its own (blocked) file,
     // so the page can say why.
     else if (list.length === 1) ok.set(m, { rules: null, why: r.why });
@@ -310,7 +312,42 @@ export function describeFile(file, cfg, video, custom = {}) {
   // Elsewhere it would only add time.
   if (custom.dupCheck == null) s.dupCheck = !!(a.noDuplicateFrames || a.noLetterbox || s.noiseOn || s.tailBlackSec);
   out.settings = s;
+  out.diff = differences(src, video, t, s, out, cfg);
   return out;
+}
+
+// Your video next to the new file, one row per thing that changes. Rows that would read
+// the same on both sides are left out; the file size row is always shown.
+function differences(src, video, t, s, out, cfg) {
+  const v = src.video, au = src.audio, m = video.analysis?.audio, rows = [];
+  const row = (label, from, to, note) => { if (from !== to) rows.push({ label, from, to, note }); };
+  const mbps = (k) => (k / 1000).toFixed(1).replace(/\.0$/, '') + ' Mbps';
+  const pr = String(v.profile || '').toLowerCase();
+  const srcType = v.codec === 'h264' ? `${String(src.container).toUpperCase()} (H.264)` : v.codec === 'prores' ? `ProRes ${pr.includes('hq') ? '422 HQ' : '422'} MOV` : `${String(src.container).toUpperCase()} (${v.codec})`;
+  const note = (re) => out.changes.find(c => re.test(c.text))?.more;
+  row('File type', srcType, out.format);
+  row('Picture', `${v.width} x ${v.height}`, `${t.w} x ${t.h}`);
+  row('Frame rate', `${fmtFps(v.fps)} fps`, `${fmtFps(t.fps)} fps`, note(/fps/));
+  const spot = out.spot, tail = s.tailBlackSec || 0;
+  const lenTo = `${out.lengthSec.toFixed(2)} s` + (tail ? ` (${spot ? spot.seconds : out.mainSec.toFixed(1)} s + ${tail} s black)` : '');
+  row('Length', `${src.durationSec.toFixed(2)} s`, lenTo, note(/Trimmed|Filled|black added/));
+  if (s.vcodec === 'h264' && v.codec === 'h264' && v.kbps && Math.abs(v.kbps - s.bitrateKbps) / s.bitrateKbps > 0.05) row('Video bitrate', mbps(v.kbps), mbps(s.bitrateKbps));
+  if (au) {
+    const fmtA = (codec, rate) => `${String(codec).startsWith('pcm') ? 'Uncompressed' : 'AAC'}, ${rate / 1000} kHz`;
+    row('Sound format', fmtA(au.codec, au.sampleRate), fmtA(s.acodec === 'pcm' ? 'pcm' : 'aac', s.sampleRate));
+    if (m && !m.silent && s.loudMode !== 'off') {
+      if (s.loudMode === 'lufs') row('Sound level', `${m.lufs?.toFixed(1)} LUFS`, `${s.loudTarget} LUFS, peaks under ${s.loudPeak} dB`);
+      else {
+        const cut = Math.max(0, m.rms - s.loudTarget);
+        const avgTo = s.loudMode === 'rms' ? s.loudTarget : m.rms - cut;
+        const pkTo = Math.min(m.samplePeak - cut, s.loudPeak);
+        row('Sound level', `average ${m.rms.toFixed(1)} dB, peak ${m.samplePeak.toFixed(1)} dB`, `average ${avgTo.toFixed(1)} dB, peak ${pkTo.toFixed(1)} dB`, cut > 0.05 ? note(/Sound turned/) : undefined);
+      }
+    }
+  }
+  if (s.noiseOn) rows.push({ label: 'Light grain', from: 'none', to: 'added', note: note(/grain/) });
+  rows.push({ label: 'File size', from: fmtBytes(video.file?.size || 0), to: 'about ' + fmtBytes(out.estBytes) });
+  return rows;
 }
 
 // ---------- 5. is the video already good to go? ----------

@@ -44,6 +44,7 @@ check('Spotify and Rogers cannot share (different sound rules)', files(['spotify
 check('Prime Video, Disney+ and YouTube share one file', files(['prime-video', 'disney', 'youtube']).length === 1);
 check('Spotify, YouTube and Meta share one file', files(['spotify', 'youtube', 'meta']).length === 1);
 check('Corus and YouTube share one file', files(['corus', 'youtube']).length === 1);
+check('Landmark always has a file of its own (cinema spot)', files(['landmark', 'youtube']).length === 2 && files(['landmark', 'meta', 'youtube']).length === 2);
 check('YouTube is never handed the Cineplex ProRes master', files(['cineplex', 'youtube']).length === 2);
 check('CTV never shares with Cineplex (H.264 vs ProRes, and black)', files(['cineplex', 'ctv-local']).length === 2);
 

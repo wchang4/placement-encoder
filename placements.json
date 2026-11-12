@@ -105,6 +105,7 @@
       "id": "cineplex",
       "name": "Cineplex: cinema pre-show",
       "short": "Cineplex",
+      "ownFile": true,
       "tile": {
         "title": "Cineplex",
         "sub": "Cinema pre-show",
@@ -492,6 +493,7 @@
       "id": "landmark",
       "name": "Landmark Cinemas: pre-show",
       "short": "Landmark",
+      "ownFile": true,
       "tile": {
         "title": "Landmark",
         "sub": "Cinema pre-show",

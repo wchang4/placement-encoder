@@ -172,8 +172,9 @@ button.link:hover { text-decoration: underline; }
 .slip.st-bad::before { background: var(--bad); }
 .slip.st-run::before { background: var(--accent); }
 .slip-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; padding: 16px 20px 0 24px; flex-wrap: wrap; }
-.slip-title { margin: 0; font-size: 18px; font-weight: 750; }
-.slip-title .of { color: var(--ink-3); font-weight: 600; margin-right: 6px; }
+.slip-of { margin: 0 0 6px; font-size: 14px; color: var(--ink-3); font-weight: 600; }
+.slip-title { margin: 0; display: flex; gap: 8px; flex-wrap: wrap; }
+.slip-title .word { font-size: 19px; font-weight: 800; color: #fff; background: var(--brand); padding: 6px 13px; border-radius: 8px; text-shadow: 0 1px 1px rgba(0, 0, 0, .25); }
 .slip-for { margin: 2px 0 0; color: var(--ink-2); font-size: 15px; }
 .badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .badges .word { font-size: 12.5px; font-weight: 800; color: #fff; background: var(--brand); padding: 3px 8px; border-radius: 6px; }
@@ -185,13 +186,15 @@ button.link:hover { text-decoration: underline; }
 .status.warn { background: var(--warn-soft); color: var(--warn); }
 .status.bad { background: var(--bad-soft); color: var(--bad); }
 .status.run { background: var(--accent-soft); color: var(--accent); }
+.status.need { background: var(--accent); color: var(--accent-ink); }
+.slip.st-need::before { background: var(--accent); }
 
 .readout { display: flex; gap: 22px 32px; align-items: flex-end; flex-wrap: wrap; padding: 14px 20px 14px 24px; margin-top: 12px; border-block: 1px solid var(--rule); background: var(--sheet-2); }
 .tc { line-height: 1; }
 .tc .t { display: block; font-size: 38px; font-weight: 800; letter-spacing: .01em; }
 .tc .t .ff { color: var(--ink-3); }
 .tc .u { display: block; font-size: 13.5px; color: var(--ink-2); margin-top: 6px; }
-.specs { display: grid; grid-template-columns: repeat(4, auto); gap: 2px 22px; margin: 0; }
+.specs { display: grid; grid-template-columns: repeat(5, auto); gap: 2px 22px; margin: 0; }
 .specs dt { font-size: 13px; color: var(--ink-3); grid-row: 1; }
 .specs dd { margin: 0; font-weight: 700; font-size: 15.5px; grid-row: 2; }
 
@@ -268,6 +271,21 @@ table.report th { color: var(--ink-2); font-weight: 650; }
 .tag.fail { background: var(--bad-soft); color: var(--bad); }
 .tag.info { background: var(--sheet-2); color: var(--ink-2); }
 
+/* What changes: your video next to the new file. The main message of a slip that needs a file. */
+.changes { margin: 16px 20px 4px 24px; }
+.changes-lead { margin: 0 0 10px; font-size: 17px; font-weight: 700; }
+table.diff { width: 100%; border-collapse: collapse; }
+table.diff thead th { font-size: 13px; font-weight: 650; color: var(--ink-3); text-align: left; padding: 0 10px 6px 0; }
+table.diff tbody th { text-align: left; font-weight: 650; color: var(--ink-2); padding: 9px 12px 9px 0; vertical-align: top; white-space: nowrap; width: 1%; }
+table.diff td { padding: 9px 10px 9px 0; vertical-align: top; border-top: 1px solid var(--rule); }
+table.diff tbody th { border-top: 1px solid var(--rule); }
+table.diff td.from { color: var(--ink-2); }
+table.diff td.arrow { color: var(--accent); font-weight: 800; width: 1%; }
+table.diff td.to { font-weight: 750; }
+table.diff td.to small { display: block; font-weight: 500; color: var(--ink-2); font-size: 14px; margin-top: 2px; }
+.todo-box, .good-box { margin: 14px 20px 0 24px; }
+.todo-box h4, .good-box h4 { margin: 0 0 6px; font-size: 15px; font-weight: 750; }
+
 /* The video is already good to go for this file: the loudest "you're done" on the page. */
 .asis { margin: 16px 20px 6px 24px; padding: 16px 18px; border-radius: 10px; background: var(--ok-soft); display: grid; gap: 8px; justify-items: start; }
 .asis-line { margin: 0; font-size: 20px; font-weight: 800; color: var(--ok); }
@@ -305,6 +323,7 @@ footer { color: var(--ink-3); font-size: 13.5px; margin-top: 26px; }
   .vc-body { grid-template-columns: 1fr; }
   .slip-body { grid-template-columns: 1fr; }
   .specs { grid-template-columns: repeat(2, auto); }
+  table.diff tbody th { white-space: normal; }
   .specs dt, .specs dd { grid-row: auto; }
   .tiles { grid-template-columns: repeat(2, 1fr); }
   .tc .t { font-size: 32px; }

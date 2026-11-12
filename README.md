@@ -49,6 +49,7 @@ Once the video has been checked, `checkSource()` in `js/plan.js` tests the video
 | `id` | Unique, no spaces. |
 | `name` | Full name, shown on file slips ("Rogers Sports & Media: digital video"). |
 | `short` | Short name used in messages ("Rogers"). |
+| `ownFile` | `true` for commercial cinema spots (Cineplex, Landmark): always made as a file of their own, never shared. |
 | `tile` | `title` (word on the badge), `sub` (where the ad runs), `color` (dark enough for white text), optional `colors` (several brand colours shown as stripes), optional `logo` path. |
 | `status`, `verifiedDate` | `"verified"` and a date once confirmed with the placement; otherwise `"unverified"`. |
 | `source` | `label` (which spec sheet, which date) and `url` if public. |
