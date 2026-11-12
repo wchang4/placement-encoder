@@ -329,8 +329,13 @@ function differences(src, video, t, s, out, cfg) {
   row('Picture', `${v.width} x ${v.height}`, `${t.w} x ${t.h}`);
   row('Frame rate', `${fmtFps(v.fps)} fps`, `${fmtFps(t.fps)} fps`, note(/fps/));
   const spot = out.spot, tail = s.tailBlackSec || 0;
-  const lenTo = `${out.lengthSec.toFixed(2)} s` + (tail ? ` (${spot ? spot.seconds : out.mainSec.toFixed(1)} s + ${tail} s black)` : '');
-  row('Length', `${src.durationSec.toFixed(2)} s`, lenTo, note(/Trimmed|Filled|black added/));
+  // Length in broadcast timecode, the way spots are bought: 450 frames at 29.97 fps is
+  // 00:00:15:00, a 15 second spot, even though a stopwatch would read 15.015 s. So a 30 fps
+  // video conformed to 29.97 keeps the same length and gets no row here.
+  const tc = (sec, fps) => { const nom = Math.round(fps), fr = Math.round(sec * fps), s0 = Math.floor(fr / nom), p2 = (x) => String(x).padStart(2, '0');
+    return `${p2(Math.floor(s0 / 3600))}:${p2(Math.floor(s0 / 60) % 60)}:${p2(s0 % 60)}:${p2(fr % nom)}`; };
+  const lenTo = tc(out.lengthSec, t.fps) + (tail ? ` (${spot ? spot.seconds : out.mainSec.toFixed(1)} s spot + ${tail} s black)` : '');
+  row('Length', tc(src.durationSec, v.fps), lenTo, note(/Trimmed|Filled|black added/));
   if (s.vcodec === 'h264' && v.codec === 'h264' && v.kbps && Math.abs(v.kbps - s.bitrateKbps) / s.bitrateKbps > 0.05) row('Video bitrate', mbps(v.kbps), mbps(s.bitrateKbps));
   if (au) {
     const fmtA = (codec, rate) => `${String(codec).startsWith('pcm') ? 'Uncompressed' : 'AAC'}, ${rate / 1000} kHz`;
