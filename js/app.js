@@ -213,10 +213,12 @@ function slip(f, i, n, problems) {
 // Your video next to the new file: what changes, row by row.
 function changesTable(f) {
   const rows = f.desc.diff || [];
-  const lead = S.video.analysis ? 'Your video doesn\u2019t meet the spec as it is, so the tool makes a new file. Here is what changes:'
-    : 'The tool will make a new file. The full list of changes appears when the check of your video finishes.';
+  const who = joinNames(f.members.map(p => p.short));
+  const sub = S.video.analysis ? `Your video doesn\u2019t meet ${who}\u2019s spec as it is. When you click Make, the tool makes a new file with these changes:`
+    : 'The full list of changes appears when the check of your video finishes.';
   return el('div', { class: 'changes' },
-    el('p', { class: 'changes-lead', text: lead }),
+    el('p', { class: 'changes-line', text: `A new file is needed for ${who}.` }),
+    el('p', { class: 'changes-sub', text: sub }),
     el('table', { class: 'diff' },
       el('thead', {}, el('tr', {}, el('th', { scope: 'col' }), el('th', { scope: 'col', text: 'Your video' }), el('th', { scope: 'col', 'aria-label': 'becomes' }), el('th', { scope: 'col', text: 'New file' }))),
       el('tbody', {}, rows.map(r => el('tr', {},
@@ -391,7 +393,8 @@ function updateMake(problems) {
     : !S.video.analysis ? 'Waiting for the check of your video to finish.'
     : blocked ? 'Fix the items marked with a cross first.'
     : S.running ? 'Keep this tab open and in front while the files are made.'
-    : (kept ? `${plural(kept, 'file is', 'files are')} already good to go and will not be made. ` : '') + (window.showSaveFilePicker && !window.__testSink
+    : `Makes ${plural(list.length, 'new file', 'new files')}: for ${joinNames(list.map(f => joinNames(f.members.map(p => p.short))))}. `
+      + (kept ? `${joinNames(S.files.filter(goodAsIs).flatMap(f => f.members.map(p => p.short)))} ${S.files.filter(goodAsIs).flatMap(f => f.members).length > 1 ? 'need' : 'needs'} nothing: send your video as it is. ` : '') + (window.showSaveFilePicker && !window.__testSink
       ? `About ${fmtBytes(total)} in total. Next, your browser asks where to save ${outs === 1 ? 'the file' : 'them (pick a folder)'}.`
       : `About ${fmtBytes(total)} in total. ${outs === 1 ? 'It goes' : 'They go'} to your Downloads folder.`);
   $('btn-cancel').hidden = !S.running;

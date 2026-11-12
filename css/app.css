@@ -186,8 +186,8 @@ button.link:hover { text-decoration: underline; }
 .status.warn { background: var(--warn-soft); color: var(--warn); }
 .status.bad { background: var(--bad-soft); color: var(--bad); }
 .status.run { background: var(--accent-soft); color: var(--accent); }
-.status.need { background: var(--accent); color: var(--accent-ink); }
-.slip.st-need::before { background: var(--accent); }
+.status.need { background: var(--warn); color: var(--sheet); }
+.slip.st-need::before { background: var(--warn); }
 
 .readout { display: flex; gap: 22px 32px; align-items: flex-end; flex-wrap: wrap; padding: 14px 20px 14px 24px; margin-top: 12px; border-block: 1px solid var(--rule); background: var(--sheet-2); }
 .tc { line-height: 1; }
@@ -272,8 +272,12 @@ table.report th { color: var(--ink-2); font-weight: 650; }
 .tag.info { background: var(--sheet-2); color: var(--ink-2); }
 
 /* What changes: your video next to the new file. The main message of a slip that needs a file. */
-.changes { margin: 16px 20px 4px 24px; }
-.changes-lead { margin: 0 0 10px; font-size: 17px; font-weight: 700; }
+/* Amber, like the green "good to go" box: something will happen to this video. */
+.changes { margin: 16px 20px 4px 24px; padding: 16px 18px 10px; border-radius: 10px; background: var(--warn-soft); }
+.changes-line { margin: 0; font-size: 20px; font-weight: 800; color: var(--warn); }
+.changes-line::before { content: "!"; display: inline-grid; place-items: center; width: 26px; height: 26px; margin-right: 10px; border-radius: 50%; background: var(--warn); color: var(--sheet); font-size: 16px; font-weight: 800; vertical-align: 2px; }
+.changes-sub { margin: 6px 0 12px; }
+.changes table.diff td, .changes table.diff tbody th { border-top-color: color-mix(in srgb, var(--warn) 22%, transparent); }
 table.diff { width: 100%; border-collapse: collapse; }
 table.diff thead th { font-size: 13px; font-weight: 650; color: var(--ink-3); text-align: left; padding: 0 10px 6px 0; }
 table.diff tbody th { text-align: left; font-weight: 650; color: var(--ink-2); padding: 9px 12px 9px 0; vertical-align: top; white-space: nowrap; width: 1%; }
