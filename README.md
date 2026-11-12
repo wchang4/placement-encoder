@@ -33,7 +33,7 @@ Each placement in `placements.json` only says what it **accepts**, copied from i
 
 Placements in one file with different file name rules get their own copy of the same file, each with its own name. A shared file never moves a placement from H.264 to ProRes or back.
 
-Once the video has been checked,  in  tests the video exactly as it is against each file's rules (file names excluded). A file it already meets is shown as "Already good to go" and is not made unless the person asks for it.
+Once the video has been checked, `checkSource()` in `js/plan.js` tests the video exactly as it is against each file's rules (file names excluded). A file it already meets is shown as "Already good to go" and is not made unless the person asks for it.
 
 ## Adding or changing a placement
 
