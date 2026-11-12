@@ -53,23 +53,6 @@ function timecode(sec, fps) {
   return { hms: `${p(Math.floor(s / 3600))}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}`, ff: p(ff), frames };
 }
 
-// ---------- theme ----------
-function setupTheme() {
-  const btn = $('theme-switch');
-  const isDark = () => document.documentElement.dataset.theme
-    ? document.documentElement.dataset.theme === 'dark'
-    : matchMedia('(prefers-color-scheme: dark)').matches;
-  const sync = () => { btn.setAttribute('aria-checked', String(isDark())); btn.title = isDark() ? 'Switch to light mode' : 'Switch to dark mode'; };
-  btn.addEventListener('click', () => {
-    const next = isDark() ? 'light' : 'dark';
-    document.documentElement.dataset.theme = next;
-    try { localStorage.setItem('pe-theme', next); } catch (e) { /* private window: not remembered */ }
-    sync();
-  });
-  matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', sync);
-  sync();
-}
-
 // ---------- 2. tiles ----------
 function badge(p, cls = 'word') {
   const tl = p.tile || {};
@@ -670,7 +653,6 @@ function setupGuards() {
 
 // ---------- start-up ----------
 async function init() {
-  setupTheme();
   const msgs = $('browser-msg');
   if (!window.WebAssembly || !window.Worker) { msgs.append(el('div', { class: 'msg bad', text: 'This browser cannot run the encoder. Use a current version of Edge or Chrome.' })); return; }
   const ua = navigator.userAgent;

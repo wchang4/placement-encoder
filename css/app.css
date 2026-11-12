@@ -65,9 +65,9 @@ a { color: var(--accent); }
 b, strong { font-weight: 700; }
 
 /* ---------- header ---------- */
-.top { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 28px; }
+.top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px 24px; align-items: flex-start; margin-bottom: 28px; }
 /* CAA NEO logo from the brand kit: colour on light, white on dark. */
-.head { display: flex; align-items: center; gap: 20px; }
+.head { display: flex; align-items: flex-start; gap: 20px; flex: 1 1 440px; min-width: 0; }
 .brand { flex-shrink: 0; line-height: 0; }
 .logo { height: 76px; width: auto; display: block; }
 .logo-white { display: none; }
@@ -77,30 +77,18 @@ b, strong { font-weight: 700; }
 @media (max-width: 560px) { .head { flex-direction: column; align-items: flex-start; gap: 12px; } .logo { height: 60px; } }
 .top h1 { margin: 0 0 6px; font-size: 30px; line-height: 1.15; font-weight: 800; letter-spacing: -.01em; }
 .lede { margin: 0; color: var(--ink-2); max-width: 60ch; }
-.top-tools { display: flex; align-items: center; gap: 18px; flex-shrink: 0; padding-top: 6px; }
-.top-tools a { font-weight: 600; text-decoration: none; }
-.top-tools a:hover { text-decoration: underline; }
-
-/* The fun bit: a little day/night switch. The sun sets as the knob crosses to the moon. */
-.theme-switch { all: unset; cursor: pointer; border-radius: 999px; }
-.theme-switch .track {
-  position: relative; display: block; width: 62px; height: 32px; border-radius: 999px;
-  background: linear-gradient(180deg, #8ec5ff, #cfe7ff); box-shadow: inset 0 0 0 1px rgba(18, 34, 58, .15);
-  overflow: hidden; transition: background .35s ease;
-}
-.theme-switch .sun, .theme-switch .moon { position: absolute; top: 8px; width: 16px; height: 16px; border-radius: 50%; transition: transform .45s cubic-bezier(.5, -.4, .3, 1.4), opacity .3s; }
-.theme-switch .sun { left: 9px; background: #ffc84a; box-shadow: 0 0 0 3px rgba(255, 200, 74, .35); }
-.theme-switch .moon { right: 9px; background: transparent; box-shadow: inset -5px -3px 0 0 #f1f4fa; transform: translateY(26px); opacity: 0; }
-.theme-switch .knob {
-  position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%; background: #fff;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, .25); transition: transform .35s cubic-bezier(.4, 1.4, .5, 1);
-}
-.theme-switch[aria-checked="true"] .track { background: linear-gradient(180deg, #13203a, #2a3c66); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12); }
-.theme-switch[aria-checked="true"] .knob { transform: translateX(30px); background: #dfe7f5; }
-.theme-switch[aria-checked="true"] .sun { transform: translateY(26px); opacity: 0; }
-.theme-switch[aria-checked="true"] .moon { transform: translateY(0); opacity: 1; }
-.theme-switch[aria-checked="false"] .knob { transform: translateX(0); }
-.theme-switch:focus-visible .track { outline: 3px solid var(--focus); outline-offset: 2px; }
+.top-tools { display: flex; align-items: center; gap: 22px; flex-shrink: 0; padding-top: 4px; }
+/* A plain link, so it never reads as part of the theme control beside it. */
+.tool-link { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; text-decoration: none; }
+.tool-link:hover { text-decoration: underline; }
+.tool-link .q { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 2px solid currentColor; font-size: 13px; font-weight: 800; line-height: 1; }
+/* Light / Dark: two labelled choices, the current one raised. */
+.theme-pick { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--sheet-2); box-shadow: inset 0 0 0 1px var(--rule); }
+.theme-pick button { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px 5px 10px; border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--ink-2); transition: background-color .15s, color .15s; }
+.theme-pick button svg { width: 16px; height: 16px; flex-shrink: 0; }
+.theme-pick button:hover { color: var(--ink); }
+.theme-pick button[aria-pressed="true"] { background: var(--sheet); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .2); cursor: default; }
+.theme-pick button:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
 
 /* ---------- steps ---------- */
 .step { background: var(--sheet); border-radius: 14px; padding: 24px 26px 26px; margin-bottom: 18px; box-shadow: var(--shadow); }

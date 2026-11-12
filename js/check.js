@@ -124,16 +124,7 @@ function tryDraft() {
   out.replaceChildren(...msgs);
 }
 
-function setupTheme() {
-  const btn = $('theme-switch');
-  const isDark = () => document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-  const sync = () => btn.setAttribute('aria-checked', String(isDark()));
-  btn.addEventListener('click', () => { const t = isDark() ? 'light' : 'dark'; document.documentElement.dataset.theme = t; try { localStorage.setItem('pe-theme', t); } catch (e) {} sync(); });
-  sync();
-}
-
 async function init() {
-  setupTheme();
   cfg = await (await fetch('placements.json', { cache: 'no-cache' })).json();
   $('draft').value = JSON.stringify(TEMPLATE, null, 2);
   $('btn-try').addEventListener('click', tryDraft);
