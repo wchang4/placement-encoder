@@ -614,15 +614,11 @@
       "accepts": {
         "formats": [
           "mp4-h264",
-          "mov-h264",
-          "mov-prores-hq"
+          "mov-h264"
         ],
         "videoKbps": {
           "min": 6000
         },
-        "h264Profiles": [
-          "High"
-        ],
         "sampleRates": [
           48000
         ],
@@ -635,7 +631,8 @@
         "YouTube recommends about 8 to 16 Mbps for 1080p but accepts higher, so no upper limit is checked.",
         "YouTube recommends 384 kbps stereo audio but accepts less, so audio bitrate is not checked. (The encoder delivers less than requested on quiet audio.)",
         "Covers YouTube ads: pre-roll (in-stream), in-feed and Shorts.",
-        "Sound: YouTube normalizes loudness itself."
+        "Sound: YouTube normalizes loudness itself.",
+        "YouTube recommends the H.264 High profile and accepts others; files made here use High. ProRes uploads also work but are far larger, so this tool makes MP4."
       ]
     },
     {

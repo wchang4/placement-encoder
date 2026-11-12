@@ -31,7 +31,9 @@ Each placement in `placements.json` only says what it **accepts**, copied from i
 3. Sets each file's encoder settings inside everyone's limits: for example the video bitrate starts from `encoding.videoKbps` (18 Mbps) and is moved inside the shared range and under any size limit.
 4. Writes the plain-language lists on each file slip: what the tool will change, what the person needs to do, and what is good to know.
 
-Placements in one file with different file name rules get their own copy of the same file, each with its own name.
+Placements in one file with different file name rules get their own copy of the same file, each with its own name. A shared file never moves a placement from H.264 to ProRes or back.
+
+Once the video has been checked,  in  tests the video exactly as it is against each file's rules (file names excluded). A file it already meets is shown as "Already good to go" and is not made unless the person asks for it.
 
 ## Adding or changing a placement
 

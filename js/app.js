@@ -9,7 +9,7 @@ import { buildArgs, targetFormat, spotLength, outDuration } from './args.js';
 import { verify, overall, checkName } from './verify.js';
 import { measureAudio, scanVideo, grabFrames, describeBars, describeBlackEnds } from './analyze.js';
 import { planLeveling } from './level.js';
-import { planFiles, describeFile, nameSlots, checkNames, reportSpec } from './plan.js';
+import { planFiles, describeFile, nameSlots, checkNames, reportSpec, checkSource } from './plan.js';
 import { summarize, pixDepth, fmtFps, fmtBytes, fmtKbps, fmtTime, aspectLabel } from './media.js';
 
 const $ = (id) => document.getElementById(id);
@@ -23,6 +23,7 @@ const S = {
   names: {},           // names the person typed, by slot id
   custom: {},          // per-file setting changes, by file key
   results: {},         // per-file result after making it, by file key
+  makeAnyway: {},      // files whose video is already good to go, but the person asked for a new one anyway
   running: false, cancelled: false, busyKey: null,
   blobUrls: []
 };
@@ -94,7 +95,7 @@ function buildTiles() {
 }
 
 function onTile(p) {
-  if (S.running) return;
+  if (S.making) return; // placements can be chosen while the video is checked, not while files are made
   const on = !S.chosen.includes(p.id);
   if (on && p.custom) S.chosen = [p.id];                                     // Custom stands alone
   else if (on) S.chosen = S.chosen.filter(id => !placement(id).custom).concat(p.id);
@@ -130,17 +131,25 @@ function replan() {
       return { ...slot, id, name: S.names[id] ?? dflt };
     });
     f.desc = describeFile(f, S.cfg, S.video, S.custom[f.key] || {});
+    f.asIs = checkSource(f, S.cfg, S.video); // is the video already good to go for this file?
   }
   renderFiles();
 }
 
 const extOf = (f) => f.desc?.settings?.container || S.cfg.formats[f.rules?.format]?.container || 'mp4';
 
+// A file whose video already meets its spec is not made, unless the person asks for it.
+const goodAsIs = (f) => !!f.asIs?.ok && !S.makeAnyway[f.key];
+const toMake = () => S.files.filter(f => !goodAsIs(f));
+// Name problems for the files that will be made (files kept as they are have no new name).
+const nameProblems = () => checkNames(S.files.map(f => (goodAsIs(f) ? { ...f, slots: [] } : f)), extOf);
+
 // ---------- 3. file slips ----------
 function slipStatus(f, nameProblems) {
   if (S.busyKey === f.key) return ['run', 'Making it now'];
   const r = S.results[f.key];
   if (r) return r.status === 'pass' ? ['ok', 'Made'] : r.status === 'warn' ? ['warn', 'Made, look at the notes'] : ['bad', 'Made, with problems'];
+  if (goodAsIs(f)) return ['ok', 'Already good to go'];
   if (f.desc.blocked) return ['bad', 'Cannot be made as is'];
   if (f.desc.waiting) return ['', 'Waiting for your video'];
   if (!S.video.analysis) return ['', 'Checking your video'];
@@ -155,7 +164,7 @@ function renderFiles() {
   $('files-intro').textContent = !n ? 'Choose at least one placement to see the files you need.'
     : n === 1 ? (m > 1 ? `One file covers all ${m} placements.` : 'One file.')
     : `${n} files for ${plural(m, 'placement', 'placements')}. Placements that can take the same file share one.`;
-  const problems = checkNames(S.files, extOf);
+  const problems = nameProblems();
   $('slips').replaceChildren(...S.files.map((f, i) => slip(f, i, n, problems)));
   updateMake(problems);
 }
@@ -175,7 +184,11 @@ function slip(f, i, n, problems) {
 
   node.append(readout(f));
 
-  if (!d.waiting && f.rules) {
+  if (goodAsIs(f)) {
+    node.append(asIsPanel(f));
+  } else if (!d.waiting && f.rules) {
+    if (f.asIs?.ok) node.append(el('div', { class: 'asis-undo' }, el('span', { class: 'hint', text: 'Your video is already good to go for this file; a new one will be made anyway.' }),
+      el('button', { type: 'button', class: 'link', text: 'Use my video as it is', onclick: () => { delete S.makeAnyway[f.key]; replan(); } })));
     const list = (cls, items, empty) => el('ul', { class: 'items ' + cls },
       items.length ? items.map(x => el('li', { class: x.level || '' }, x.text, x.more ? el('small', { text: x.more }) : null))
         : el('li', { class: 'none', text: empty }));
@@ -195,13 +208,27 @@ function slip(f, i, n, problems) {
   const foot = el('div', { class: 'slip-foot' }, specNotes(f));
   if (f.rules && !d.waiting) {
     const zones = safeArea(f); if (zones) foot.append(zones);
-    foot.append(settingsPanel(f));
+    if (!goodAsIs(f)) foot.append(settingsPanel(f)); // nothing to set when nothing is made
   }
   node.append(foot);
   const run = el('div', { class: 'slip-run', id: 'run-' + i });
   if (S.results[f.key]) run.append(resultView(S.results[f.key]));
   node.append(run);
   return node;
+}
+
+// The video already meets this file's spec: say so plainly, and that nothing more is needed.
+function asIsPanel(f) {
+  const who = joinNames(f.members.map(p => p.short));
+  const name = S.video.file.name;
+  const renames = f.slots.map(slot => ({ slot, r: checkName(name, slot.rule) })).filter(x => x.r && !x.r.ok);
+  return el('div', { class: 'asis' },
+    el('p', { class: 'asis-line', text: `Your video is already good to go for ${who}.` }),
+    el('p', { class: 'asis-sub' }, 'It meets the spec as it is, so you don\u2019t need to make a new file. Send ', el('b', { text: name }), ' as it is.'),
+    renames.length ? el('ul', { class: 'items todo' }, renames.map(({ slot, r }) => el('li', { class: 'warn' },
+      `The file name doesn\u2019t match ${joinNames(slot.for)}\u2019s naming rule. Rename it before you send it.`,
+      el('small', { text: `${joinNames(slot.for)} ${slot.for.length > 1 ? 'need' : 'needs'} ${r.expected}${slot.rule.example ? ', for example ' + slot.rule.example : ''}.` })))) : null,
+    el('button', { type: 'button', class: 'ghost small', text: 'Make a new file anyway', onclick: () => { S.makeAnyway[f.key] = true; replan(); } }));
 }
 
 function readout(f) {
@@ -214,6 +241,18 @@ function readout(f) {
       el('dt', { text: 'Picture' }), el('dd', { text: a.shortEdge ? `${a.shortEdge}p, your video's shape` : 'your video\'s size' }),
       el('dt', { text: 'Frame rate' }), el('dd', { text: fr }),
       el('dt', { text: 'Video' }), el('dd', { text: a.videoOut ? mbps(a.videoOut) : 'ProRes' })));
+  }
+  if (goodAsIs(f)) { // describe the video itself: it is what gets sent
+    const src = S.video.src, v = src.video, tc = timecode(src.durationSec, v.fps);
+    return el('div', { class: 'readout' },
+      el('div', { class: 'tc', title: 'Length in broadcast timecode (hours:minutes:seconds:frames)' },
+        el('span', { class: 't' }, tc.hms, el('span', { class: 'ff', text: ':' + tc.ff })),
+        el('span', { class: 'u', text: `${tc.frames} frames at ${fmtFps(v.fps)} fps, your video as it is` })),
+      el('dl', { class: 'specs' },
+        el('dt', { text: 'Picture' }), el('dd', { text: `${v.width} x ${v.height}` }),
+        el('dt', { text: 'Frame rate' }), el('dd', { text: fmtFps(v.fps) + ' fps' }),
+        el('dt', { text: 'Video' }), el('dd', { text: v.codec === 'prores' ? 'ProRes' : v.kbps ? mbps(v.kbps) : v.codec }),
+        el('dt', { text: 'File size' }), el('dd', { text: fmtBytes(S.video.file.size) })));
   }
   const t = d.t, tc = timecode(d.lengthSec, t.fps), s = d.settings;
   const tail = s.tailBlackSec ? `, including ${s.tailBlackSec} s of black` : '';
@@ -237,7 +276,7 @@ function nameRow(f, slot, j, i, probs) {
   paint(probs);
   input.addEventListener('input', () => {
     S.names[slot.id] = input.value; slot.name = input.value;
-    const problems = checkNames(S.files, extOf);
+    const problems = nameProblems();
     // repaint every name message (a duplicate elsewhere may have cleared) without redrawing the inputs
     document.querySelectorAll('.slip').forEach((node, fi) => node.querySelectorAll('.name-row').forEach((row, sj) => row._paint?.(problems.get(`${fi}:${sj}`) || [])));
     S.files.forEach((ff, fi) => {
@@ -326,20 +365,24 @@ function updateMake(problems) {
   const n = S.files.length;
   $('make').hidden = !n;
   if (!n) return;
-  const outs = S.files.reduce((k, f) => k + (f.slots?.length || 1), 0);
-  const blocked = S.files.some(f => f.desc.blocked) || [...problems.values()].flat().some(x => x.level === 'bad');
-  const ready = S.video?.src && S.video.analysis && !blocked && !S.running;
+  const list = toMake(), idx = (f) => S.files.indexOf(f);
+  const outs = list.reduce((k, f) => k + (f.slots?.length || 1), 0);
+  const blocked = list.some(f => f.desc.blocked) || list.some(f => f.slots.some((_, j) => (problems.get(`${idx(f)}:${j}`) || []).some(x => x.level === 'bad')));
   const btn = $('btn-make');
-  btn.disabled = !ready;
-  btn.textContent = n === 1 ? (outs > 1 ? `Make the file (${outs} copies)` : 'Make the file') : `Make the ${n} files`;
-  const total = S.files.reduce((k, f) => k + (f.desc.estBytes || 0) * (f.slots?.length || 1), 0);
-  $('make-note').textContent = !S.video?.src ? 'Drop your video in step 1 first.'
+  const nothing = !list.length;
+  btn.hidden = nothing;
+  btn.disabled = !(S.video?.src && S.video.analysis && !blocked && !S.running);
+  btn.textContent = list.length === 1 ? (outs > 1 ? `Make the file (${outs} copies)` : 'Make the file') : `Make the ${list.length} files`;
+  const kept = n - list.length;
+  const total = list.reduce((k, f) => k + (f.desc.estBytes || 0) * (f.slots?.length || 1), 0);
+  $('make-note').textContent = nothing ? `Nothing to make. Your video is already good to go for ${n === 1 ? 'this placement' : 'every file'}; just check the file name.`
+    : !S.video?.src ? 'Drop your video in step 1 first.'
     : !S.video.analysis ? 'Waiting for the check of your video to finish.'
     : blocked ? 'Fix the items marked with a cross first.'
     : S.running ? 'Keep this tab open and in front while the files are made.'
-    : window.showSaveFilePicker && !window.__testSink
+    : (kept ? `${plural(kept, 'file is', 'files are')} already good to go and will not be made. ` : '') + (window.showSaveFilePicker && !window.__testSink
       ? `About ${fmtBytes(total)} in total. Next, your browser asks where to save ${outs === 1 ? 'the file' : 'them (pick a folder)'}.`
-      : `About ${fmtBytes(total)} in total. ${outs === 1 ? 'It goes' : 'They go'} to your Downloads folder.`;
+      : `About ${fmtBytes(total)} in total. ${outs === 1 ? 'It goes' : 'They go'} to your Downloads folder.`);
   $('btn-cancel').hidden = !S.running;
 }
 
@@ -475,11 +518,13 @@ async function onMake() {
   if (S.running || !S.files.length) return;
   $('make-msg').replaceChildren();
   clearResults();
-  const outs = S.files.flatMap(f => f.slots.map(slot => slot.name.trim() + '.' + extOf(f)));
+  const list = toMake();
+  if (!list.length) return;
+  const outs = list.flatMap(f => f.slots.map(slot => slot.name.trim() + '.' + extOf(f)));
   // Ask where to save BEFORE the long work (it needs this click). One file: "Save as". Several: a folder.
   const target = { handle: null, dir: null };
   if (!window.__testSink && outs.length === 1 && window.showSaveFilePicker) {
-    const ext = extOf(S.files[0]);
+    const ext = extOf(list[0]);
     try { target.handle = await window.showSaveFilePicker({ suggestedName: outs[0], types: [{ description: 'Video', accept: { [MIME[ext]]: ['.' + ext] } }] }); }
     catch (e) { if (e.name === 'AbortError') { makeMsg('info', 'No save location chosen, so nothing was made.'); return; } }
   } else if (!window.__testSink && outs.length > 1 && window.showDirectoryPicker) {
@@ -493,19 +538,19 @@ async function onMake() {
       target.dir = null; // fall back to normal downloads
     }
   }
-  S.running = true; S.cancelled = false;
+  S.running = true; S.making = true; S.cancelled = false;
   for (const t of document.querySelectorAll('.tile')) t.disabled = true;
   try {
-    for (let i = 0; i < S.files.length && !S.cancelled; i++) {
-      const f = S.files[i];
+    for (let k = 0; k < list.length && !S.cancelled; k++) {
+      const f = list[k], i = S.files.indexOf(f);
       S.busyKey = f.key; renderFiles();
       document.querySelector(`.slip[data-key="${CSS.escape(f.key)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      try { S.results[f.key] = await makeOne(f, i, target); }
+      try { S.results[f.key] = await makeOne(f, i, target, k, list.length); }
       catch (e) { if (!S.cancelled) S.results[f.key] = { status: 'fail', error: friendlyError(e), rows: [], notes: [] }; }
       S.busyKey = null;
     }
   } finally {
-    S.running = false; S.busyKey = null;
+    S.running = false; S.making = false; S.busyKey = null;
     for (const t of document.querySelectorAll('.tile')) t.disabled = false;
     renderFiles();
     if (S.cancelled) makeMsg('info', 'Stopped. Files already finished were saved; the one in progress was not.');
@@ -513,9 +558,9 @@ async function onMake() {
   }
 }
 
-async function makeOne(f, i, target) {
+async function makeOne(f, i, target, k = 0, count = 1) {
   const s = f.desc.settings, src = S.video.src, ext = s.container, memName = 'out.' + ext;
-  const n = S.files.length, pre = n > 1 ? `File ${i + 1} of ${n}: ` : '';
+  const pre = count > 1 ? `File ${k + 1} of ${count}: ` : '';
   const prog = progressBox(document.getElementById('run-' + i));
   try {
     await ensureEngine(prog);
@@ -540,7 +585,7 @@ async function makeOne(f, i, target) {
     const saved = [];
     for (const slot of f.slots) {
       const name = slot.name.trim() + '.' + ext;
-      const handle = target.dir ? await target.dir.getFileHandle(name, { create: true }) : (f.slots.length === 1 && S.files.length === 1 ? target.handle : null);
+      const handle = target.dir ? await target.dir.getFileHandle(name, { create: true }) : (f.slots.length === 1 && count === 1 ? target.handle : null);
       saved.push({ name, ...(await saveOutput(blob, name, handle, !!target.dir)) });
     }
     const source = { ...src, dupPercent: S.video.analysis?.video?.dups?.percent, conversion: S.video.analysis?.video?.dups?.conversion };

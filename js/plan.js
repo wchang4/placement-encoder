@@ -134,11 +134,16 @@ export function planFiles(chosen, cfg, ctx = {}) {
   const full = (1 << n) - 1;
   const ok = new Map();
   const sub = (mask) => chosen.filter((_, i) => mask & (1 << i));
+  // Each placement's own file type (what it would get on its own). A shared file never moves a
+  // placement from H.264 to ProRes or back: nobody is handed a ProRes master they would not
+  // otherwise need (a 400 MB upload instead of 30 MB), just to save one encode.
+  const ownCodec = chosen.map(p => { const r = combine([p], cfg, length(p.accepts?.tailBlackSec || 0)); return r.ok ? cfg.formats[r.rules.format].vcodec : null; });
   for (let m = 1; m <= full; m++) {
     const list = sub(m);
     const tail = list[0].accepts?.tailBlackSec || 0;
     const r = combine(list, cfg, length(tail));
-    if (r.ok) ok.set(m, { rules: r.rules });
+    const sameKind = r.ok && list.length > 1 ? chosen.every((p, i) => !(m & (1 << i)) || ownCodec[i] === cfg.formats[r.rules.format].vcodec) : true;
+    if (r.ok && sameKind) ok.set(m, { rules: r.rules });
     // A placement that cannot be made even on its own still gets its own (blocked) file,
     // so the page can say why.
     else if (list.length === 1) ok.set(m, { rules: null, why: r.why });
@@ -306,6 +311,92 @@ export function describeFile(file, cfg, video, custom = {}) {
   if (custom.dupCheck == null) s.dupCheck = !!(a.noDuplicateFrames || a.noLetterbox || s.noiseOn || s.tailBlackSec);
   out.settings = s;
   return out;
+}
+
+// ---------- 5. is the video already good to go? ----------
+
+// Checks the video exactly as it is against a file's rules. If nothing misses, the
+// person can send it as it is and does not need to make a new file. File names are
+// left out on purpose: a file can be renamed at any time (the page shows a reminder).
+// Returns null until the automatic check of the video has finished.
+export function checkSource(file, cfg, video) {
+  const a = file.rules;
+  if (!a || !video?.src?.video || !video.analysis) return null;
+  const src = video.src, v = src.video, au = src.audio, an = video.analysis, st = cfg.strictness;
+  const names = file.members.map(p => p.short);
+  const misses = [];
+  const miss = (text) => misses.push(text);
+  const label = (f) => cfg.formats[f]?.label || f;
+
+  // File type
+  const pr = String(v.profile || '').toLowerCase();
+  const fmt = v.codec === 'h264' ? `${src.container}-h264`
+    : v.codec === 'prores' ? (pr.includes('hq') ? 'mov-prores-hq' : /^(standard|422)$/.test(pr) ? 'mov-prores-422' : 'mov-prores-other')
+    : v.codec;
+  const okFormats = a.formats ?? cfg.formatPreference;
+  if (!okFormats.includes(fmt)) miss(`It is ${cfg.formats[fmt] ? label(fmt) : `${String(src.container).toUpperCase()} (${v.codec})`}; ${joinAnd(names)} ${names.length > 1 ? 'take' : 'takes'} ${okFormats.map(label).join(' or ')}.`);
+
+  // Picture
+  const short = Math.min(v.width, v.height);
+  if (a.shortEdge && short !== a.shortEdge) miss(`The picture is ${v.width} x ${v.height}; it should be ${a.shortEdge} on its short side.`);
+  else if (a.minShortEdge && short < a.minShortEdge) miss(`The picture is ${short} px on its short side; at least ${a.minShortEdge} is needed.`);
+  if (an.video?.idet && an.video.idet.interlacedPercent >= 5) miss('It is interlaced; it should be progressive.');
+
+  // Frame rate
+  if (a.frameRates && !a.frameRates.some(f => near(v.fps, f))) miss(`It is ${fmtFps(v.fps)} fps; ${a.frameRates.map(fmtFps).join(' or ')} is needed.`);
+  if (v.cfrLikely === false) miss('Its frame rate may vary; a constant rate is needed.');
+
+  // Video bitrate and file size
+  if (v.codec === 'h264' && v.kbps != null) {
+    // 1% allowance: a file's measured bitrate is only an average (10 Mbps can read as 9,999 kbps).
+    if (a.videoKbps.min != null && v.kbps < a.videoKbps.min * 0.99) miss(`Its video bitrate is ${(v.kbps / 1000).toFixed(1)} Mbps; at least ${(a.videoKbps.min / 1000).toFixed(1)} Mbps is needed.`);
+    if (a.videoKbps.max != null && v.kbps > a.videoKbps.max * 1.01) miss(`Its video bitrate is ${(v.kbps / 1000).toFixed(1)} Mbps; at most ${(a.videoKbps.max / 1000).toFixed(1)} Mbps is allowed.`);
+  }
+  if (v.codec === 'h264' && a.h264Profiles && v.profile && !a.h264Profiles.includes(v.profile)) miss(`It uses the H.264 ${v.profile} profile; ${a.h264Profiles.join(' or ')} is needed.`);
+  if (a.maxSizeMB != null && video.file?.size / 1e6 > a.maxSizeMB) miss(`It is ${fmtBytes(video.file.size)}; the limit is ${a.maxSizeMB} MB.`);
+
+  // Length: an exact spot length, plus any black the placement wants at the end.
+  const tail = a.tailBlackSec || 0;
+  const ends = an.video ? describeBlackEnds(an.video.black, src.durationSec) : {};
+  if (tail && !(ends.end >= tail - 0.25)) miss(`It needs ${tail} seconds of black at the end.`);
+  const main = src.durationSec - (tail && ends.end >= tail - 0.25 ? ends.end : 0);
+  const spot = spotLength(main, v.fps, cfg.spotLengths);
+  if (spot && Math.abs(main - spot.exactSec) > 0.6 / v.fps) miss(`It runs ${main.toFixed(2)} s; a ${spot.seconds} second spot should be exactly ${spot.frames} frames.`);
+
+  // Sound
+  if (!au) { if (a.audioRequired) miss('It has no sound, and sound is required.'); }
+  else {
+    if (an.audio?.silent && a.audioRequired) miss('Its sound track is silent.');
+    const wantPcm = fmt.startsWith('mov-prores');
+    if (wantPcm ? !String(au.codec).startsWith('pcm') : au.codec !== 'aac') miss(`Its sound is ${au.codec}; ${wantPcm ? 'uncompressed (PCM)' : 'AAC'} is needed.`);
+    if (a.sampleRates && !a.sampleRates.includes(au.sampleRate)) miss(`Its sound is ${au.sampleRate / 1000} kHz; ${a.sampleRates.map(r => r / 1000 + ' kHz').join(' or ')} is needed.`);
+    if (au.codec === 'aac' && au.kbps != null) {
+      if (a.audioKbps.min != null && au.kbps < a.audioKbps.min * 0.97) miss(`Its sound is ${Math.round(au.kbps)} kbps; at least ${a.audioKbps.min} kbps is needed.`);
+      if (a.audioKbps.max != null && au.kbps > a.audioKbps.max * 1.03) miss(`Its sound is ${Math.round(au.kbps)} kbps; ${a.audioKbps.max} kbps is needed.`);
+    }
+    const L = a.loudness, m = an.audio;
+    if (L && m && !m.silent) {
+      if (L.mode === 'lufs') {
+        if (m.lufs == null || Math.abs(m.lufs - L.target) > st.loudnessWarnDb) miss(`Its sound measures ${m.lufs?.toFixed(1)} LUFS; ${L.target} is needed.`);
+        if (m.truePeak != null && m.truePeak > L.peak + 0.1) miss(`Its sound peaks at ${m.truePeak.toFixed(1)} dB; ${L.peak} dB is the limit.`);
+      } else if (L.mode === 'max') {
+        if (m.rms > L.average + 0.05) miss(`Its sound averages ${m.rms.toFixed(1)} dB; ${L.average} dB is the limit.`);
+        if (m.samplePeak > L.peak + 0.05) miss(`Its sound peaks at ${m.samplePeak.toFixed(1)} dB; ${L.peak} dB is the limit.`);
+      } else if (L.mode === 'rms') {
+        if (Math.abs(m.rms - L.target) > st.loudnessWarnDb) miss(`Its sound averages ${m.rms.toFixed(1)} dB; ${L.target} dB is needed.`);
+        if (m.samplePeak > L.peak + 0.05) miss(`Its sound peaks at ${m.samplePeak.toFixed(1)} dB; ${L.peak} dB is the limit.`);
+      }
+    }
+  }
+
+  // Things the placements reject
+  if (an.video) {
+    const bars = describeBars(an.video.crop, v.width, v.height, st.barTolerancePx);
+    if (bars && a.noLetterbox) miss(`It has black bars (${bars}).`);
+    const d = an.video.dups;
+    if (a.noDuplicateFrames && (d.conversion || d.percent > st.dupPassPercent)) miss('It has repeated frames.');
+  }
+  return { ok: !misses.length, misses };
 }
 
 // ---------- names ----------

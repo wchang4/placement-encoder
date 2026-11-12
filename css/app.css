@@ -268,6 +268,15 @@ table.report th { color: var(--ink-2); font-weight: 650; }
 .tag.fail { background: var(--bad-soft); color: var(--bad); }
 .tag.info { background: var(--sheet-2); color: var(--ink-2); }
 
+/* The video is already good to go for this file: the loudest "you're done" on the page. */
+.asis { margin: 16px 20px 6px 24px; padding: 16px 18px; border-radius: 10px; background: var(--ok-soft); display: grid; gap: 8px; justify-items: start; }
+.asis-line { margin: 0; font-size: 20px; font-weight: 800; color: var(--ok); }
+.asis-line::before { content: "\2713"; display: inline-grid; place-items: center; width: 26px; height: 26px; margin-right: 10px; border-radius: 50%; background: var(--ok); color: var(--sheet); font-size: 15px; vertical-align: 2px; }
+.asis-sub { margin: 0; }
+.asis-sub b { overflow-wrap: anywhere; }
+.asis .items { justify-self: stretch; }
+.asis-undo { display: flex; gap: 12px; flex-wrap: wrap; align-items: baseline; padding: 12px 20px 0 24px; }
+
 /* ---------- make ---------- */
 .make { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--rule); }
 button.primary, button.ghost {

@@ -2,7 +2,7 @@
 // Each case lists placements and the files the planner must produce. These are the
 // groupings worked out by hand while building the tool; the planner must agree.
 import { readFileSync } from 'node:fs';
-import { planFiles, combine, describeFile, validatePlacement } from '../js/plan.js';
+import { planFiles, combine, describeFile, validatePlacement, checkSource } from '../js/plan.js';
 
 const cfg = JSON.parse(readFileSync(new URL('../placements.json', import.meta.url), 'utf8'));
 const by = Object.fromEntries(cfg.placements.map(p => [p.id, p]));
@@ -44,6 +44,8 @@ check('Spotify and Rogers cannot share (different sound rules)', files(['spotify
 check('Prime Video, Disney+ and YouTube share one file', files(['prime-video', 'disney', 'youtube']).length === 1);
 check('Spotify, YouTube and Meta share one file', files(['spotify', 'youtube', 'meta']).length === 1);
 check('Corus and YouTube share one file', files(['corus', 'youtube']).length === 1);
+check('YouTube is never handed the Cineplex ProRes master', files(['cineplex', 'youtube']).length === 2);
+check('CTV never shares with Cineplex (H.264 vs ProRes, and black)', files(['cineplex', 'ctv-local']).length === 2);
 
 // 6. A 60 s spot is too long for Bell's 25 MB at 5 Mbps: the file is blocked and says why.
 const bell60 = files(['crave-bell'], 60)[0];
@@ -58,6 +60,24 @@ const src = { durationSec: 15, container: 'mp4', video: { width: 1920, height: 1
 const d = describeFile(files(['cineplex'])[0], cfg, { src, analysis: null });
 check('Cineplex 30 fps: conform to 29.97', d.t.conform && d.t.fps === 29.97 && d.spot.frames === 450, JSON.stringify(d.changes.map(c => c.text)));
 check('Cineplex 30 fps: nothing to do', d.todo.length === 0, JSON.stringify(d.todo));
+
+// 9. "Already good to go": the SCO video (MP4, H.264 High, 30 fps, 10 Mbps, AAC 317 kbps,
+//    exactly 15 s) suits YouTube as it is, but not Rogers (29.97 fps and -24 LKFS) or Cineplex (ProRes).
+const sco = {
+  file: { name: '15s_EN_SCO_Computer YT_V4_LM.mp4', size: 18.5e6 },
+  src: { durationSec: 15, container: 'mp4', video: { codec: 'h264', profile: 'High', width: 1920, height: 1080, fps: 30, kbps: 9999, cfrLikely: true, fieldOrder: 'progressive' },
+    audio: { codec: 'aac', sampleRate: 48000, channels: 2, kbps: 317 } },
+  analysis: { audio: { rms: -22.7, samplePeak: -2.3, lufs: -19.6, truePeak: -2.1, silent: false },
+    video: { dups: { percent: 0, duplicates: 0, frames: 450 }, crop: { frames: [] }, black: [], idet: null } }
+};
+const asIs = (ids) => checkSource(files(ids, 15)[0], cfg, sco);
+check('SCO video is already good to go for YouTube', asIs(['youtube']).ok, JSON.stringify(asIs(['youtube']).misses));
+check('SCO video is not good as is for Rogers (frame rate, sound level)', !asIs(['rogers']).ok && asIs(['rogers']).misses.length >= 2, JSON.stringify(asIs(['rogers']).misses));
+check('SCO video is not good as is for Cineplex (needs ProRes)', !asIs(['cineplex']).ok && /ProRes/.test(asIs(['cineplex']).misses[0]), asIs(['cineplex']).misses[0]);
+check('SCO video is not good as is for CTV (needs 10 s of black)', !asIs(['ctv-local']).ok && asIs(['ctv-local']).misses.some(m => /black/.test(m)));
+const scoLong = { ...sco, src: { ...sco.src, durationSec: 15.04 } };
+check('15.04 s is not good as is (spots must be exact)', !checkSource(files(['youtube'], 15)[0], cfg, scoLong).ok);
+check('no answer before the video check finishes', checkSource(files(['youtube'], 15)[0], cfg, { ...sco, analysis: null }) === null);
 
 console.log(failed ? `\n${failed} FAILED` : '\nall passed');
 process.exit(failed ? 1 : 0);
