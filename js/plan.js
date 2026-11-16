@@ -290,8 +290,7 @@ export function describeFile(file, cfg, video, custom = {}) {
     const bars = describeBars(an.video.crop, v.width, v.height, st.barTolerancePx);
     if (bars) {
       if (a.noLetterbox) bad(`Black bars found (${bars}). ${say('noLetterbox', 'does not allow', 'do not allow')} them.`, 'The picture must fill the frame. This needs a new export from the editor.');
-      else if (a.barsAllowed) info(`Black bars found (${bars}). ${all('accepts', 'accept')} them.`);
-      else warn(`Black bars found (${bars}).`, 'Some placements reject black bars around the picture.');
+      else if (!a.barsAllowed) warn(`Black bars found (${bars}).`, 'Some placements reject black bars around the picture.');
     }
     const ends = describeBlackEnds(an.video.black, src.durationSec);
     if (ends.start) info(`Your video starts with ${ends.start.toFixed(1)} s of black.`, 'Some placements want the picture from the first frame.');
