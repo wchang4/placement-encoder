@@ -262,7 +262,8 @@ function extraRows(summary, settings, preset, extra, st, add, source, tail = 0) 
       const bars = describeBars(vid.crop, summary.video.width, summary.video.height, st.barTolerancePx);
       add('Black bars', spec.barsAllowed ? 'allowed' : 'none', bars || 'none detected', bars ? (spec.noLetterbox ? 'fail' : spec.barsAllowed ? 'info' : 'warn') : 'pass',
         bars && spec.noLetterbox ? 'This placement does not allow letterboxing or pillarboxing. The picture must fill the frame; this needs fixing in the edit.'
-          : bars && spec.barsAllowed ? 'This placement accepts black bars. The picture will not fill the whole screen.' : '');
+          : bars && spec.barsAllowed ? 'This placement accepts black bars. The picture will not fill the whole screen.'
+          : bars ? 'Black bars found. Fine if they are intentional in the edit; otherwise the picture should fill the frame.' : '');
     }
     // Black frames at start / end
     const ends = describeBlackEnds(vid.black, summary.durationSec);
