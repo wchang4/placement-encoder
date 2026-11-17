@@ -391,16 +391,15 @@
         "color": "#0f79d0",
         "logo": ""
       },
-      "status": "unverified",
-      "verifiedDate": "",
+      "status": "verified",
+      "verifiedDate": "Nov 17, 2026",
       "source": {
-        "label": "Team notes. Link not yet added.",
-        "url": ""
+        "label": "Amazon Ads, Streaming TV and Prime Video ad specs (web page, no date shown). Pulled from the official online source; confirmed against the tool Nov 17, 2026.",
+        "url": "https://advertising.amazon.com/resources/ad-specs/dsp/video/streaming-tv-prime-video-ads"
       },
       "accepts": {
         "formats": [
-          "mp4-h264",
-          "mov-h264"
+          "mp4-h264"
         ],
         "shortEdge": 1080,
         "videoKbps": {
@@ -412,16 +411,25 @@
           "Main"
         ],
         "sampleRates": [
+          44100,
           48000
         ],
         "audioKbps": {
           "min": 192
         },
-        "audioRequired": true
+        "audioRequired": true,
+        "frameRates": [
+          23.976,
+          24,
+          25,
+          29.97
+        ]
       },
       "notes": [
-        "Minimum 15 Mbps video; 50 Mbps recommended for Prime Video. This preset targets 25 Mbps. Raise it if the placement asks for more, but watch the 500 MB limit.",
-        "Constant frame rate. Audio minimum 192 kbps.",
+        "Confirmed Nov 17, 2026 against the official Amazon Ads web page (no date shown), pulled online.",
+        "At least 1920 x 1080. Frame rate 23.976 (recommended), 24, 25 or 29.97. Sound 44.1 or 48 kHz. MP4 only here; MOV is not on Amazon's list.",
+        "Canadian spots run 15, 30, 45 or 60 seconds.",
+        "Minimum 15 Mbps video and 192 kbps audio, max 500 MB, come from team notes. This preset targets 25 Mbps. Raise it if the placement asks for more, but watch the 500 MB limit.",
         "Sound: No target known."
       ]
     },
@@ -571,11 +579,11 @@
         "color": "#15883e",
         "logo": ""
       },
-      "status": "unverified",
-      "verifiedDate": "",
+      "status": "verified",
+      "verifiedDate": "Nov 17, 2026",
       "source": {
-        "label": "Team notes. Link not yet added.",
-        "url": ""
+        "label": "Spotify Advertising, Video Takeover ad specs (web page, no date shown). Pulled from the official online source; confirmed against the tool Nov 17, 2026.",
+        "url": "https://ads.spotify.com/en-US/ad-specs/video-takeover-ad-specs"
       },
       "accepts": {
         "formats": [
@@ -584,20 +592,23 @@
         ],
         "minShortEdge": 720,
         "maxSizeMB": 500,
-        "sampleRates": [
-          48000
-        ],
         "audioRequired": true,
         "loudness": {
           "mode": "rms",
           "target": -14,
           "peak": -0.2
+        },
+        "audioKbps": {
+          "min": 198,
+          "max": 320
         }
       },
       "notes": [
-        "30 seconds or less, max 500 MB, at least about 720 px on the short side. Audio is required (no silent files).",
+        "Confirmed Nov 17, 2026 against the official Spotify Advertising web page (no date shown), pulled online.",
+        "9:16 or 16:9, NTSC or PAL frame rates, progressive (not interlaced). Audio bitrate 198 to 320 kbps. Audio is required (no silent files).",
+        "Spotify asks for no letterboxing, pillarboxing or slates. The tool flags black bars as a warning; make sure there are none before sending.",
+        "30 seconds or less, max 500 MB, at least about 720 px on the short side, from team notes.",
         "Loudness: RMS -14 dBFS with peak -0.2 dBFS (Phase 2). RMS is not the same as LUFS; the tool will label which it measures.",
-        "Resolution is left as the source's.",
         "Sound: RMS target, not LUFS."
       ]
     },
@@ -611,39 +622,32 @@
         "color": "#e0002b",
         "logo": ""
       },
-      "status": "unverified",
-      "verifiedDate": "",
+      "status": "verified",
+      "verifiedDate": "Nov 17, 2026",
       "source": {
-        "label": "Team notes (YouTube recommended upload settings). Link not yet added.",
-        "url": ""
+        "label": "YouTube Help, Recommended upload encoding settings (web page, no date shown). Pulled from the official online source; confirmed against the tool Nov 17, 2026.",
+        "url": "https://support.google.com/youtube/answer/1722171"
       },
       "accepts": {
         "formats": [
           "mp4-h264",
           "mov-h264"
-        ],
-        "videoKbps": {
-          "min": 6000
-        },
-        "sampleRates": [
-          48000
-        ],
-        "audioRequired": true
+        ]
       },
       "notes": [
+        "Confirmed Nov 17, 2026 against the official YouTube Help page on upload settings (no date shown), pulled online. Ad formats: https://support.google.com/google-ads/answer/17091270",
         "MP4, no edit lists, moov atom at the front, H.264 High, progressive, 2 consecutive B-frames, closed GOP at half the frame rate, 4:2:0, BT.709, VBR, same frame rate as the source.",
-        "1080p about 8 Mbps (12 Mbps for 48 to 60 fps). Audio AAC-LC stereo 48 kHz at 384 kbps.",
+        "YouTube recommends about 8 Mbps for 1080p at 24 to 30 fps and 12 Mbps at 48 to 60 fps. These are recommendations, not minimums, so video bitrate is not checked. Files made here are well above them.",
+        "Audio: AAC-LC stereo, 48 or 96 kHz, 384 kbps recommended. Files made here use 48 kHz. Audio bitrate is not checked.",
         "This tool does not deinterlace. Interlaced sources show a warning.",
-        "YouTube recommends about 8 to 16 Mbps for 1080p but accepts higher, so no upper limit is checked.",
-        "YouTube recommends 384 kbps stereo audio but accepts less, so audio bitrate is not checked. (The encoder delivers less than requested on quiet audio.)",
         "Covers YouTube ads: pre-roll (in-stream), in-feed and Shorts.",
         "Sound: YouTube normalizes loudness itself.",
-        "YouTube recommends the H.264 High profile and accepts others; files made here use High. ProRes uploads also work but are far larger, so this tool makes MP4."
+        "ProRes uploads also work but are far larger, so this tool makes MP4."
       ]
     },
     {
       "id": "meta",
-      "name": "Meta: Facebook and Instagram (unverified)",
+      "name": "Meta: Facebook and Instagram",
       "short": "Meta",
       "tile": {
         "title": "Meta",
@@ -651,11 +655,11 @@
         "color": "#0a5fd6",
         "logo": ""
       },
-      "status": "unverified",
-      "verifiedDate": "",
+      "status": "verified",
+      "verifiedDate": "Nov 17, 2026",
       "source": {
-        "label": "Third-party summaries. Verify against Meta's own ad specs. Safe zones not yet documented here.",
-        "url": ""
+        "label": "Meta Ads Guide, Facebook Feed and Instagram Reels video specs (web pages, no date shown). Instagram Reels: https://www.facebook.com/business/ads-guide/update/video/instagram-reels Pulled from the official online source; confirmed against the tool Nov 17, 2026.",
+        "url": "https://www.facebook.com/business/ads-guide/video/facebook-feed"
       },
       "accepts": {
         "formats": [
@@ -663,16 +667,16 @@
           "mov-h264"
         ],
         "shortEdge": 1080,
-        "minShortEdge": 720,
         "maxSizeMB": 4096,
-        "sampleRates": [
-          48000
-        ],
-        "audioRequired": true
+        "audioKbps": {
+          "min": 128
+        }
       },
       "notes": [
-        "MP4 or MOV, H.264, max 4 GB, at least 720 px on the short side.",
-        "Covers Facebook and Instagram Feed, Reels and Stories ads."
+        "Confirmed Nov 17, 2026 against the official Meta Ads Guide pages (no date shown), pulled online.",
+        "MP4 or MOV, H.264, max 4 GB, fixed frame rate, progressive, no edit lists. Sound is optional; if present, AAC at 128 kbps or more.",
+        "Meta accepts small pictures (120 px wide for Feed, 500 px for Reels) but recommends at least 1080 px. Files made here are 1080 on the short side.",
+        "Covers Facebook and Instagram Feed, Reels and Stories ads. Safe zones are not documented here."
       ]
     },
     {
