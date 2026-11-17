@@ -176,10 +176,10 @@
         "color": "#da291c",
         "logo": ""
       },
-      "status": "unverified",
-      "verifiedDate": "",
+      "status": "verified",
+      "verifiedDate": "Nov 17, 2026",
       "source": {
-        "label": "Rogers Sports & Media ad specifications, Digital Video (website, checked 2026-11-11), plus the RSM Ad Manager self-serve specs supplied by the team",
+        "label": "Rogers Sports & Media ad specifications, Digital Video (web page, no date shown). Pulled from the official online source; confirmed against the tool Nov 17, 2026. The RSM Ad Manager self-serve help pages could not be reached online, so the self-serve limits (85 MB, up to 30 s) come from the specs the team supplied.",
         "url": "https://www.rogerssportsandmedia.com/adspecs/?filter1=Digital_Video"
       },
       "accepts": {
@@ -211,6 +211,7 @@
         "duplicateFrames": "not allowed"
       },
       "notes": [
+        "Confirmed Nov 17, 2026 against the official Rogers Sports & Media web page (no date shown), pulled online. The self-serve RSM Ad Manager limits come from the specs the team supplied, as the help pages could not be reached.",
         "One file that meets both Rogers specs: booked through a Rogers rep, and self-serve in RSM Ad Manager.",
         "MP4, H.264, progressive, 1920 x 1080. A constant 18 Mbps: inside the 10 to 40 Mbps range, and a 30 second spot (about 70 MB) stays under the self-serve limit of 85 MB.",
         "23.976 or 29.97 fps (29.97 preferred).",
@@ -231,11 +232,11 @@
         "color": "#00549a",
         "logo": ""
       },
-      "status": "unverified",
-      "verifiedDate": "",
+      "status": "verified",
+      "verifiedDate": "Nov 17, 2026",
       "source": {
-        "label": "Bell Media Digital Advertising Standards and Creative Specifications, April 16 2026, page 15 (Connected TV, VAST)",
-        "url": "https://www.bellmedia.ca/lede/wp-content/uploads/2020/05/Bell-Media-Ad-Specs-EN-April-16-2026.pdf"
+        "label": "Bell Media Digital Advertising Standards and Creative Specifications, last revised Oct 21, 2026 (PDF, Connected TV / VAST video specs). Pulled from the official online source; confirmed against the tool Nov 17, 2026.",
+        "url": "https://www.bellmedia.ca/lede/wp-content/uploads/2026/10/Bell-Media-Ad-Specs-EN-Oct-21-2026R.pdf"
       },
       "accepts": {
         "formats": [
@@ -267,6 +268,7 @@
         }
       },
       "notes": [
+        "Confirmed Nov 17, 2026 against the official Bell Media spec PDF, last revised Oct 21, 2026, pulled online. Its video specs are unchanged from the April 16, 2026 version.",
         "One spec covers Crave, CTV, Noovo, TSN, CP24, BNN and CTV News on connected TV (\"Crave now includes CTV and Noovo\").",
         "MP4, H.264, progressive, 1920 x 1080 recommended (1280 x 720 minimum). 6, 15 or 30 seconds.",
         "Max file size 25 MB, minimum 5,000 kbps. A 30 s spot must stay near 6 Mbps to fit, so this preset uses a constant 5,800 kbps (constant, so simple scenes do not drop under the minimum).",
