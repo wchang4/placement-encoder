@@ -5,7 +5,7 @@
 // report is verify.js. Placements live in placements.json, so adding one needs no code.
 
 import { Engine } from './engine.js';
-import { buildArgs, targetFormat, spotLength, outDuration } from './args.js';
+import { buildArgs, targetFormat, spotLength, outDuration, fmtLength } from './args.js';
 import { verify, overall, checkName } from './verify.js';
 import { measureAudio, scanVideo, grabFrames, describeBars, describeBlackEnds } from './analyze.js';
 import { planLeveling } from './level.js';
@@ -478,8 +478,7 @@ async function loadFile(file) {
 
 function renderFacts() {
   const v = S.video.src.video, src = S.video.src, a = S.video.analysis, st = S.cfg.strictness;
-  const tc = timecode(src.durationSec, v.fps);
-  const facts = [['Length', `${src.durationSec.toFixed(2)} s (${tc.hms}:${tc.ff})`], ['Picture', `${v.width} x ${v.height}, ${aspectLabel(v.width, v.height)}`], ['Frame rate', fmtFps(v.fps) + ' fps']];
+  const facts = [['Length', fmtLength(src.durationSec, v.fps, S.cfg.spotLengths)], ['Picture', `${v.width} x ${v.height}, ${aspectLabel(v.width, v.height)}`], ['Frame rate', fmtFps(v.fps) + ' fps']];
   if (!src.audio) facts.push(['Sound', 'none']);
   else if (a?.audio?.silent) facts.push(['Sound', 'silent']);
   else if (a?.audio) facts.push(['Sound', `average ${a.audio.rms.toFixed(1)} dB, peak ${a.audio.samplePeak.toFixed(1)} dB`]);
@@ -504,7 +503,7 @@ function renderTech() {
     ['Audio', a ? `${a.codec}, ${a.sampleRate / 1000} kHz, ${a.channels} channels` + (a.kbps ? ', ' + Math.round(a.kbps) + ' kbps' : '') : 'none'],
     ['Tracks', `${s.videoCount} video, ${s.audioCount} audio` + (s.otherCount ? `, ${s.otherCount} other (ignored)` : '')]];
   $('vc-tech').replaceChildren(...rows.flatMap(([k, val]) => [el('dt', { text: k }), el('dd', { text: val })]));
-  $('vc-facts').replaceChildren(el('dt', { text: 'Length' }), el('dd', { text: s.durationSec.toFixed(2) + ' s' }), el('dt', { text: 'Picture' }), el('dd', { text: `${v.width} x ${v.height}` }), el('dt', { text: 'Frame rate' }), el('dd', { text: fmtFps(v.fps) + ' fps' }));
+  $('vc-facts').replaceChildren(el('dt', { text: 'Length' }), el('dd', { text: fmtLength(s.durationSec, v.fps, S.cfg.spotLengths) }), el('dt', { text: 'Picture' }), el('dd', { text: `${v.width} x ${v.height}` }), el('dt', { text: 'Frame rate' }), el('dd', { text: fmtFps(v.fps) + ' fps' }));
   $('vc-body').hidden = false;
 }
 

@@ -72,6 +72,15 @@ export function spotLength(durationSec, fps, cfg) {
   return { seconds: L, frames, exactSec, cut: diff > 0.0005 ? diff : 0, pad: diff < -0.0005 ? -diff : 0 };
 }
 
+// Length as people say it. A spot with exactly the right number of frames reads
+// "15 s (450 frames)", not the 15.02 a stopwatch shows at 29.97 fps. Anything
+// else keeps its decimals so a wrong length stays visible.
+export function fmtLength(durationSec, fps, cfg) {
+  const sp = spotLength(durationSec, fps, cfg);
+  if (sp && Math.abs(durationSec - sp.exactSec) < 0.5 / fps) return `${sp.seconds} s (${sp.frames} frames)`;
+  return `${durationSec.toFixed(2)} s`;
+}
+
 // Returns { args, notes }. inPath is the mounted source, outName the file the
 // encoder will create in its own memory.
 export function buildArgs(settings, src, inPath, outName, opts = {}) {

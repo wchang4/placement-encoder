@@ -139,12 +139,12 @@ export function verify(summary, settings, preset, opts) {
     const wantSec = sp.exactSec + tail, wantFrames = sp.frames + tailFrames;
     const d = Math.abs(summary.durationSec - wantSec);
     const ok = frames ? frames === wantFrames : d < 0.5 / (summary.video?.fps || 30);
-    add('Duration', `${sp.seconds} s exactly (${sp.frames} frames)` + (tail ? ` plus ${tail} s of black` : ''), summary.durationSec.toFixed(3) + ' s' + (frames ? `, ${frames} frames` : ''),
+    add('Duration', `${sp.seconds} s exactly (${sp.frames} frames)` + (tail ? ` plus ${tail} s of black` : ''), ok ? `${sp.seconds} s` + (tail ? ` plus ${tail} s of black` : '') + (frames ? ` (${frames} frames)` : '') : (frames ? `${frames} frames, ` : '') + summary.durationSec.toFixed(2) + ' s',
       ok ? 'pass' : d <= st.durationToleranceSec ? 'warn' : 'fail');
     // The sound must run the full length too. AAC, and the browser's own probe, add up to
     // about a tenth of a second, so only a real gap fails.
     const ad = summary.audio?.durationSec;
-    if (ad) add('Sound length', 'same as the picture', ad.toFixed(3) + ' s', Math.abs(ad - wantSec) <= 0.15 ? 'pass' : 'fail');
+    if (ad) { const adOk = Math.abs(ad - wantSec) <= 0.15; add('Sound length', 'same as the picture', adOk ? 'same as the picture' : ad.toFixed(2) + ' s', adOk ? 'pass' : 'fail'); }
   } else if (src && src.durationSec) {
     const d = Math.abs(summary.durationSec - src.durationSec - tail);
     add('Duration', src.durationSec.toFixed(2) + ' s (same as source)' + (tail ? ` plus ${tail} s of black` : ''), summary.durationSec.toFixed(2) + ' s',
