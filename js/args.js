@@ -117,7 +117,13 @@ export function buildArgs(settings, src, inPath, outName, opts = {}) {
     let prof = s.h264Profile;
     if (s.pixFmt === 'yuv422p' && prof !== 'high422') { prof = 'high422'; notes.push('4:2:2 needs the High 4:2:2 profile, so it was switched automatically.'); }
     if (s.pixFmt !== 'yuv422p' && prof === 'high422') prof = 'high';
-    args.push('-c:v', 'libx264', '-preset', s.x264Preset, '-profile:v', prof, '-pix_fmt', s.pixFmt);
+    // Grain has to survive the encoder. The quicker x264 presets smooth it away on still
+    // frames, which leaves exact repeats (tested: veryfast left 4 of 450 frames repeated on a
+    // 30 fps conversion at 18 Mbps; fast with these options left none). So grain always uses
+    // at least "fast", and x264 is told not to skip or zero out the small changes grain makes.
+    const quick = ['ultrafast', 'superfast', 'veryfast', 'faster'];
+    const preset = s.noiseOn && quick.includes(s.x264Preset) ? 'fast' : s.x264Preset;
+    args.push('-c:v', 'libx264', '-preset', preset, '-profile:v', prof, '-pix_fmt', s.pixFmt);
 
     const k = Math.round(s.bitrateKbps);
     if (s.bitrateMode === 'cbr') {
@@ -133,6 +139,7 @@ export function buildArgs(settings, src, inPath, outName, opts = {}) {
     const x264 = [];
     if (s.bitrateMode === 'cbr') x264.push('nal-hrd=cbr');
     if (s.closedGop) x264.push('open-gop=0');
+    if (s.noiseOn) x264.push('fast-pskip=0', 'dct-decimate=0');
     if (x264.length) args.push('-x264-params', x264.join(':'));
   }
 

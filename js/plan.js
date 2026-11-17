@@ -340,8 +340,11 @@ function differences(src, video, t, s, out, cfg) {
     const fmtA = (codec, rate) => `${String(codec).startsWith('pcm') ? 'Uncompressed' : 'AAC'}, ${rate / 1000} kHz`;
     row('Sound format', fmtA(au.codec, au.sampleRate), fmtA(s.acodec === 'pcm' ? 'pcm' : 'aac', s.sampleRate));
     if (m && !m.silent && s.loudMode !== 'off') {
-      if (s.loudMode === 'lufs') row('Sound level', `${m.lufs?.toFixed(1)} LUFS`, `${s.loudTarget} LUFS, peaks under ${s.loudPeak} dB`);
-      else {
+      // Already on target (within the pass tolerance, peaks under the limit): the leveller
+      // leaves it as it is, so there is no change to show.
+      const onTarget = s.loudMode === 'lufs' && m.lufs != null && Math.abs(m.lufs - s.loudTarget) <= (cfg.strictness?.loudnessPassDb ?? 0.5) && !(m.truePeak > s.loudPeak + 0.1);
+      if (s.loudMode === 'lufs' && !onTarget) row('Sound level', `${m.lufs?.toFixed(1)} LUFS`, `${s.loudTarget} LUFS, peaks under ${s.loudPeak} dB`);
+      else if (s.loudMode !== 'lufs') {
         const cut = Math.max(0, m.rms - s.loudTarget);
         const avgTo = s.loudMode === 'rms' ? s.loudTarget : m.rms - cut;
         const pkTo = Math.min(m.samplePeak - cut, s.loudPeak);
