@@ -430,10 +430,10 @@
         "color": "#113ccf",
         "logo": ""
       },
-      "status": "unverified",
-      "verifiedDate": "",
+      "status": "verified",
+      "verifiedDate": "Nov 16, 2026",
       "source": {
-        "label": "Disney+ Creative Details & Requirements, updated Aug 6, 2025 (RSM Streaming TV single ad spec; Disney+ in Canada is sold through Rogers Sports & Media)",
+        "label": "Disney+ Creative Details & Requirements, updated Aug 6, 2025 (RSM Streaming TV single ad spec; Disney+ in Canada is sold through Rogers Sports & Media). Received Nov 16, 2026 and confirmed against the tool that day.",
         "url": ""
       },
       "accepts": {
@@ -475,6 +475,7 @@
         }
       ],
       "notes": [
+        "Confirmed Nov 16, 2026 against the spec sheet received that day (Disney+ Creative Details & Requirements, updated Aug 6, 2025). One deliberate difference: the tool accepts black bars, which the sheet does not allow.",
         "MP4, H.264, 1920 x 1080 (16:9), 10 to 40 Mbps.",
         "23.976 fps accepted, 29.97 preferred. Keep the frame rate native: Disney rejects files with duplicate frames, which come from converting the frame rate.",
         "Audio AAC, stereo, 48 kHz. Loudness -24 LKFS (plus or minus 2), peaks no higher than -1 dBTP.",
