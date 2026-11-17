@@ -112,10 +112,10 @@
         "color": "#0b3b8c",
         "logo": ""
       },
-      "status": "unverified",
-      "verifiedDate": "",
+      "status": "verified",
+      "verifiedDate": "Nov 10, 2026",
       "source": {
-        "label": "Cineplex Media Digital Pre-Show specs, May 2024 (PDF supplied by team; link not yet added)",
+        "label": "Cineplex Media Digital Pre-Show specs, dated May 9, 2024 (PDF supplied by team). Received Nov 10, 2026 and confirmed against the tool that day.",
         "url": ""
       },
       "accepts": {
@@ -158,6 +158,7 @@
         }
       ],
       "notes": [
+        "Confirmed Nov 10, 2026 against the spec sheet received that day (Cineplex Media Digital Pre-Show specs, dated May 9, 2024).",
         "Audio: the written rule is used (average no higher than -12 dB, peaks no higher than -8 dB). The '-10db' in the spec table is not treated as a target.",
         "File names: max 12 characters, no special characters, end with a language letter (E = English, F = French), for example NAMEE.MOV. Type the name yourself.",
         "Text-safe area is 1724 x 972. Video files only, no stills.",
@@ -289,10 +290,10 @@
           "#207a46"
         ]
       },
-      "status": "unverified",
-      "verifiedDate": "",
+      "status": "verified",
+      "verifiedDate": "Nov 11, 2026",
       "source": {
-        "label": "CTV local station commercial specs (Word document supplied by team, 2026-11-11, undated)",
+        "label": "CTV local station commercial specs (Word document supplied by team; no date printed on the sheet). Received Nov 11, 2026 and confirmed against the tool that day.",
         "url": ""
       },
       "accepts": {
@@ -319,6 +320,7 @@
         "example": "CAA_SCOComputer_15_CAANEO"
       },
       "notes": [
+        "Confirmed Nov 11, 2026 against the spec sheet received that day (CTV local station commercial specs; no date printed on the sheet).",
         "Local CTV stations ask for at least 10 seconds of black after the commercial. This tile adds 10 seconds of black and silence after the spot is cut to its exact length.",
         "Accepted: MOV, MP4 or AVI at 1920 x 1080, ProRes 4:2:2 or H.264. This preset makes an H.264 MP4 at a steady 20 Mbps.",
         "Audio 48 kHz, stereo or mono mix (no split tracks). The sheet gives no loudness target, so the Canadian broadcast standard of -24 LKFS is used.",
@@ -338,10 +340,10 @@
         "color": "#1f2a6b",
         "logo": ""
       },
-      "status": "unverified",
-      "verifiedDate": "",
+      "status": "verified",
+      "verifiedDate": "Nov 11, 2026",
       "source": {
-        "label": "Corus Digital Creative Specifications (PDF supplied by team), In-Stream, Pre-Roll and Connected TV video column",
+        "label": "Corus Digital Creative Specifications (PDF supplied by team; no date printed on the sheet), In-Stream, Pre-Roll and Connected TV video column. Received Nov 11, 2026 and confirmed against the tool that day.",
         "url": ""
       },
       "accepts": {
@@ -367,6 +369,7 @@
         }
       },
       "notes": [
+        "Confirmed Nov 11, 2026 against the spec sheet received that day (Corus Digital Creative Specifications; no date printed on the sheet).",
         "Covers in-stream, pre-roll and connected TV (StackTV, Pluto TV). MP4 only: no MOV on Pluto TV.",
         "MP4, H.264 with AAC audio, 1920 x 1080 recommended (1280 x 720 and 640 x 360 also accepted).",
         "29.97 frames per second. A 23.976 video is converted to 29.97 by this preset.",
@@ -498,10 +501,10 @@
         "color": "#8a1c2b",
         "logo": ""
       },
-      "status": "unverified",
-      "verifiedDate": "",
+      "status": "verified",
+      "verifiedDate": "Nov 11, 2026",
       "source": {
-        "label": "Landmark Cinemas Onscreen Advertising Specs & Delivery (2023 rate card PDF, supplied by team)",
+        "label": "Landmark Cinemas Onscreen Advertising Specs & Delivery (rate card PDF supplied by team; no date printed on the sheet, the file name says 2023). Received Nov 11, 2026 and confirmed against the tool that day.",
         "url": "https://www.landmarkcinemas.com/advertising"
       },
       "accepts": {
@@ -546,6 +549,7 @@
         }
       ],
       "notes": [
+        "Confirmed Nov 11, 2026 against the spec sheet received that day (Landmark Cinemas Onscreen Advertising Specs & Delivery; no date printed on the sheet, the file name says 2023).",
         "Digital motion ads: MP4, H.264, 50 Mbps or higher, 24 or 23.976 fps, 1920 x 1080. This preset uses a constant 55 Mbps so simple scenes do not drop under the minimum.",
         "Audio: the sheet mentions uncompressed 48 kHz 16-bit WAV or AIFF; Landmark has confirmed that a separate WAV is not required. This preset puts high-quality AAC (320 kbps) inside the MP4.",
         "Audio level: the sheet says average 'higher than -12' with peaks not over -8. Read as the same limits as Cineplex (average no higher than -12 dB, peaks no higher than -8 dB). Confirm with Landmark.",
