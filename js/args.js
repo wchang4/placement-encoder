@@ -170,7 +170,11 @@ export function buildArgs(settings, src, inPath, outName, opts = {}) {
   }
 
   // ---- container flags ----
-  if (s.faststart) args.push('-movflags', '+faststart');
+  // Without an edit list, B-frames would push the first picture 2 frames after the sound
+  // (the file reads 15.08 s and the sound leads the picture). Negative composition offsets
+  // keep the picture starting at 0, in step with the sound.
+  const movflags = (s.faststart ? '+faststart' : '') + (s.stripEditLists ? '+negative_cts_offsets' : '');
+  if (movflags) args.push('-movflags', movflags);
   if (s.stripEditLists) args.push('-use_editlist', '0');
   args.push('-write_tmcd', '0'); // do not copy the timecode track
   // Keep the file exactly as long as the source. Leveling and AAC can add a few
