@@ -597,15 +597,12 @@
           "mode": "rms",
           "target": -14,
           "peak": -0.2
-        },
-        "audioKbps": {
-          "min": 198,
-          "max": 320
         }
       },
       "notes": [
         "Confirmed Nov 17, 2026 against the official Spotify Advertising web page (no date shown), pulled online.",
-        "9:16 or 16:9, NTSC or PAL frame rates, progressive (not interlaced). Audio bitrate 198 to 320 kbps. Audio is required (no silent files).",
+        "9:16 or 16:9 (HD 720 x 1280 or 1280 x 720 or similar), NTSC or PAL frame rates, progressive (not interlaced). Audio is required (no silent files).",
+        "Spotify lists a bitrate range of 198 kbps \"for ideal quality\", 320 kbps maximum, without saying whether it means audio or video. It is not checked, so Spotify can share a file with other placements. Ask the Spotify rep if this matters.",
         "Spotify asks for no letterboxing, pillarboxing or slates. The tool flags black bars as a warning; make sure there are none before sending.",
         "30 seconds or less, max 500 MB, at least about 720 px on the short side, from team notes.",
         "Loudness: RMS -14 dBFS with peak -0.2 dBFS (Phase 2). RMS is not the same as LUFS; the tool will label which it measures.",
