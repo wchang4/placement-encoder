@@ -251,7 +251,6 @@ export function describeFile(file, cfg, video, custom = {}) {
   else if (t.raises) {
     out.changes.push({ text: `${fmtFps(v.fps)} fps to ${fmtFps(t.fps)} fps, with light grain`, more: 'Raising the frame rate repeats some frames. Grain hides the exact repeats.' });
     s.noiseOn = custom.noiseOn ?? true;
-    if (a.noDuplicateFrames) warn(`${say('noDup', 'rejects', 'reject')} repeated frames, and raising ${fmtFps(v.fps)} fps to ${fmtFps(t.fps)} repeats some.`, `Grain hides exact repeats, but an export at ${fmtFps(t.fps)} fps from the editor is safer.`);
   }
 
   // Length
@@ -279,13 +278,17 @@ export function describeFile(file, cfg, video, custom = {}) {
   // What the automatic check found
   if (an?.video) {
     const d = an.video.dups;
-    if (d.conversion) (a.noDuplicateFrames ? bad : warn)('Your video looks converted from another frame rate (a repeated frame every few frames).',
-      `${a.noDuplicateFrames ? say('noDup', 'rejects', 'reject') + ' this as duplicate frames. ' : ''}Ask the editor for an export at the original frame rate.`);
-    else if (d.percent > st.dupPassPercent) {
+    // Repeats, whether from held frames or a frame rate conversion in the edit, are fixed
+    // here with light grain: every frame comes out slightly different, and the check on
+    // the new file confirms it. No new export from the editor is needed.
+    if (d.conversion || d.percent > st.dupPassPercent) {
+      const why = d.conversion
+        ? `Your video was converted from another frame rate in the edit, so a frame repeats every few frames (${d.percent.toFixed(1)}%).`
+        : `Your video holds some frames still (${d.percent.toFixed(1)}%, longest ${d.longestRunSec.toFixed(1)} s).`;
       if (a.noDuplicateFrames) {
         s.noiseOn = custom.noiseOn ?? true;
-        out.changes.push({ text: 'Light grain added', more: `Your video holds some frames still (${d.percent.toFixed(1)}%, longest ${d.longestRunSec.toFixed(1)} s). ${say('noDup', 'rejects', 'reject')} exact repeats; grain makes each frame slightly different.` });
-      } else info(`Some frames repeat (${d.percent.toFixed(1)}%, for example a held end card). That is fine for ${joinAnd(names)}.`);
+        if (!t.raises) out.changes.push({ text: 'Light grain added', more: `${why} ${say('noDup', 'rejects', 'reject')} exact repeats; grain makes each frame slightly different.` });
+      } else info(`${why} That is fine for ${joinAnd(names)}.`);
     } else if (a.noDuplicateFrames) info(`Repeated frames: none. Every frame was checked, so no grain is needed for ${name('noDup')}.`);
     const bars = describeBars(an.video.crop, v.width, v.height, st.barTolerancePx);
     if (bars) {

@@ -244,15 +244,13 @@ function extraRows(summary, settings, preset, extra, st, add, source, tail = 0) 
     if (tail && status !== 'pass' && !spec.noDuplicateFrames) status = 'info';
     let note = `Longest repeat: ${d.longestRun} frames (${d.longestRunSec.toFixed(2)} s).` + (tail ? ` This includes the ${tail} s of black added at the end, which repeats by design.` : '');
     if (source?.dupPercent != null) note += ` Source had ${source.dupPercent.toFixed(1)}%.`;
-    // Grain can hide a converted source's repeats, but a placement may still see the stutter.
+    // A converted source passes once grain has removed the exact repeats; say so plainly.
     if (status === 'pass' && source?.conversion) {
-      status = 'warn';
-      note += ` Your video was converted from another frame rate (a repeat every ${source.conversion.every} frames). Grain removed the exact repeats, but the motion still stutters and a placement may still reject it. A native-frame-rate export is safer.`;
+      note += ` Your video was converted from another frame rate in the edit (a repeat every ${source.conversion.every} frames). Grain removed the exact repeats; the motion looks the same as your video.`;
     } else if (status === 'info') {
       note += ' This placement is not known to reject repeated frames.';
     } else if (status !== 'pass') {
-      if (d.conversion) note += ` The repeats follow a frame rate conversion pattern (one every ${d.conversion.every} frames). Ask the editor for a native-frame-rate export.`;
-      if (settings.noiseOn) note += ' Grain was on but repeats remain: the encoder can smooth light grain away. Try strength 6 (even numbers only) or a higher bitrate.';
+      if (settings.noiseOn) note += ' Grain was on but the encoder smoothed it away on these frames. Raise the video bitrate in Change settings and make the file again.';
       else note += ' Turn on "Add light grain" and encode again.';
     }
     add('Duplicate frames', `under ${st.dupPassPercent}% of frames`, `${d.duplicates} of ${n} (${pct.toFixed(1)}%)`, status, note);

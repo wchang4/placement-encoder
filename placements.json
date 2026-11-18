@@ -97,8 +97,8 @@
     "memoryBlockMB": 1500
   },
   "grain": {
-    "_note": "Light grain (temporal noise) that stops exact duplicate frames. OFF by default; the page offers it when the frame rate is changed or the check finds repeated frames. Tested 2026-11-09: strength 1 changes nothing, 3 and 5 are unreliable, 4 removed every exact repeat at 6 to 20 Mbps H.264 and ProRes. Use even numbers. A preset can override with \"noise\": {\"strength\": 6}.",
-    "strength": 4
+    "_note": "Light grain (temporal noise) that stops exact duplicate frames. OFF by default; the page offers it when the frame rate is changed or the check finds repeated frames. Tested 2026-11-09: strength 1 changes nothing, 3 and 5 are unreliable, 4 removed every exact repeat at 6 to 20 Mbps H.264 and ProRes. Use even numbers. Raised to 6 on 2026-11-18: the browser encoder (single-threaded) left 1 repeat in 179 frames at 4 on a frame-rate-converted clip; 6 left none there and none in 449 frames of a 15 s converted spot. A preset can override with \"noise\": {\"strength\": 6}.",
+    "strength": 6
   },
   "placements": [
     {
