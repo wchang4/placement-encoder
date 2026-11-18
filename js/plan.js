@@ -286,7 +286,7 @@ export function describeFile(file, cfg, video, custom = {}) {
         s.noiseOn = custom.noiseOn ?? true;
         out.changes.push({ text: 'Light grain added', more: `Your video holds some frames still (${d.percent.toFixed(1)}%, longest ${d.longestRunSec.toFixed(1)} s). ${say('noDup', 'rejects', 'reject')} exact repeats; grain makes each frame slightly different.` });
       } else info(`Some frames repeat (${d.percent.toFixed(1)}%, for example a held end card). That is fine for ${joinAnd(names)}.`);
-    }
+    } else if (a.noDuplicateFrames) info(`Repeated frames: none. Every frame was checked, so no grain is needed for ${name('noDup')}.`);
     const bars = describeBars(an.video.crop, v.width, v.height, st.barTolerancePx);
     if (bars) {
       if (a.noLetterbox) bad(`Black bars found (${bars}). ${say('noLetterbox', 'does not allow', 'do not allow')} them.`, 'The picture must fill the frame. This needs a new export from the editor.');
